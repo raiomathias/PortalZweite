@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Material Menor - Bomberos</title>
+  <link rel="stylesheet" href="estilos.css">
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+</head>
+<body>
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="pantallaLogin" class="pantalla">
+    <div class="tarjeta-login">
+      <h1>🚒 Material Menor</h1>
+      <p class="subtitulo">Control de inventario</p>
+      <input id="loginUsuario" type="text" placeholder="Usuario" autocomplete="username">
+      <input id="loginContrasena" type="password" placeholder="Contraseña" autocomplete="current-password">
+      <button class="btn-principal" onclick="hacerLogin()">Ingresar</button>
+      <p id="loginError" class="mensaje-error"></p>
+    </div>
+  </div>
+
+  <!-- ===================== APP ===================== -->
+  <div id="app" class="pantalla oculto">
+    <header class="topbar">
+      <div>
+        <strong id="nombreUsuarioTop"></strong>
+        <span id="rolUsuarioTop" class="rol-badge"></span>
+      </div>
+      <div class="topbar-acciones">
+        <button class="btn-icono" onclick="abrirEscanerQR()" title="Escanear QR">📷 QR</button>
+        <button class="btn-texto" onclick="cerrarSesionUI()" style="color: #ffffff; font-weight: bold;">Cerrar Sesión</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab activo" data-tab="mapa" onclick="mostrarTab('mapa')">🚒 Mapa del Carro</button>
+      <button class="tab" data-tab="inventario" onclick="mostrarTab('inventario')">Inventario</button>
+      <button class="tab oculto" data-tab="bitacora" id="tabBtnBitacora" onclick="mostrarTab('bitacora')">Bitácora</button>
+      <button class="tab oculto" data-tab="agregar" id="tabBtnAgregar" onclick="mostrarTab('agregar')">Agregar</button>
+      <button class="tab oculto" data-tab="usuarios" id="tabBtnUsuarios" onclick="mostrarTab('usuarios')">Usuarios</button>
+      <button class="tab oculto" data-tab="auditoria" id="tabBtnAuditoria" onclick="mostrarTab('auditoria'); cargarAuditoriaConFiltros();">Auditoría</button>
+      <button class="tab" data-tab="cuenta" onclick="mostrarTab('cuenta')">Cuenta</button>
+    </nav>
+
+    <!-- ---------- MAPA INTERACTIVO DEL CARRO ---------- -->
+    <section id="vistaMapa" class="vista">
+      <h2>Esquema del Carro</h2>
+      <p class="nota">Selecciona la máquina y haz clic en un compartimento o cortina para ver su inventario o bitácora.</p>
+
+      <div class="filtros" style="margin-bottom: 20px;">
+        <label style="width: 100%;"><strong>Máquina activa:</strong>
+          <select id="mapaMaquina" class="form-control" style="margin-top: 5px; width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--color-borde); background: var(--color-tarjeta); color: var(--color-texto);"></select>
+        </label>
+      </div>
+
+      <!-- Distribución visual del carro -->
+      <div style="display: flex; flex-direction: column; gap: 12px; max-width: 480px; margin: 0 auto;">
+
+        <!-- Cabina y Techo -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="mapa-bloque" onclick="clicCompartimentoMapa('Cabina')">
+            🎛️ Cabina
+          </div>
+          <div class="mapa-bloque" onclick="clicCompartimentoMapa('Techo')">
+            ☁️ Techo
+          </div>
+        </div>
+
+        <!-- Laterales: Izquierda (G1, G3, G5) y Derecha (G2, G4, G6) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <!-- Izquierda (Impares) -->
+          <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--color-borde); border-radius: 10px; padding: 10px;">
+            <div style="font-size: 0.75rem; font-weight: bold; text-align: center; margin-bottom: 8px; color: var(--color-primario);">LADO IZQUIERDO</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div class="mapa-bloque-item" onclick="clicCompartimentoMapa('G1')">G1</div>
+              <div class="mapa-bloque-item" onclick="clicCompartimentoMapa('G3')">G3</div>
+              <div class="mapa-bloque-item" onclick="clicCompartimentoMapa('G5')">G5</div>
+            </div>
+          </div>
+
+          <!-- Derecha (Pares) -->
+          <div style="background: rgba(0,0,0,0.02); border: 1px solid var(--color-borde); border-radius: 10px; padding: 10px;">
+            <div style="font-size: 0.75rem; font-weight: bold; text-align: center; margin-bottom: 8px; color: var(--color-primario);">LADO DERECHO</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+              <div class="mapa-bloque-item" onclick="clicCompartimentoMapa('G2')">G2</div>
+              <div class="mapa-bloque-item" onclick="clicCompartimentoMapa('G4')">G4</div>
+              <div class="mapa-bloque-item" onclick="clicCompartimentoMapa('G6')">G6</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Parte trasera (GR) -->
+        <div class="mapa-bloque" onclick="clicCompartimentoMapa('GR')">
+          🚒 Cuerpo Bomba / Trasera (GR)
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ---------- MODAL SELECCION MAPA ACCION ---------- -->
+    <div id="modalMapaAccion" class="modal oculto">
+      <div class="modal-contenido" style="text-align: center;">
+        <h3 id="mapaAccionTitulo">Compartimento</h3>
+        <p id="mapaAccionSub" class="nota">¿Qué deseas revisar para esta ubicación?</p>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
+          <button class="btn-principal" onclick="irDesdeMapa('inventario')">📦 Ir al Inventario</button>
+          <button class="btn-secundario" onclick="irDesdeMapa('bitacora')" style="width: 100%; margin-bottom: 0; padding: 12px; font-weight: 600;">📋 Ir a la Bitácora</button>
+        </div>
+        <div class="modal-botones" style="justify-content: center; margin-top: 15px; margin-bottom: 0;">
+          <button class="btn-texto" onclick="cerrarModalMapaAccion()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---------- INVENTARIO ---------- -->
+    <section id="vistaInventario" class="vista">
+      <div class="filtros">
+        <select id="filtroMaquina" onchange="renderInventario()"></select>
+        <select id="filtroCategoria" onchange="renderInventario()"><option value="">Todas las categorias</option></select>
+        <select id="filtroCortina" onchange="renderInventario()"><option value="">Todas las cortinas</option></select>
+        <input id="filtroTexto" type="search" placeholder="Buscar por nombre o UID..." oninput="renderInventario()">
+      </div>
+      <div id="listaInventario" class="lista"></div>
+    </section>
+
+    <!-- ---------- BITACORA ---------- -->
+    <section id="vistaBitacora" class="vista oculto">
+      
+      <!-- NUEVO: Panel superior de Historial General por Fechas y Máquina -->
+      <div class="auditoria-filtros" style="margin-bottom: 25px; background: var(--color-tarjeta); padding: 15px; border-radius: 10px; border: 1px solid var(--color-borde);">
+        <h3 style="margin-top: 0; margin-bottom: 8px;">📋 Historial General de Bitácoras</h3>
+        <p class="nota" style="margin-bottom: 12px;">Filtra y revisa todos los registros históricos realizados en un rango de fechas.</p>
+        
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 15px;">
+          <div>
+            <label><strong>Desde:</strong><input type="date" id="filtroHistorialDesde" class="form-control" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--color-borde); background: var(--color-fondo); color: var(--color-texto);"></label>
+          </div>
+          <div>
+            <label><strong>Hasta:</strong><input type="date" id="filtroHistorialHasta" class="form-control" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--color-borde); background: var(--color-fondo); color: var(--color-texto);"></label>
+          </div>
+          <div>
+            <label><strong>Máquina:</strong><select id="filtroHistorialMaquina" class="form-control" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--color-borde); background: var(--color-fondo); color: var(--color-texto);"><option value="">Todas las máquinas</option></select></label>
+          </div>
+          <div style="display: flex; align-items: flex-end;">
+            <button class="btn-principal" onclick="cargarHistorialGlobalBitacoras()" style="width: 100%; padding: 9px;">🔍 Consultar Historial</button>
+          </div>
+        </div>
+
+        <!-- Contenedor donde se cargan los resultados del historial global -->
+        <div id="listaHistorialGlobal" class="lista" style="max-height: 40vh; overflow-y: auto;">
+          <p class="nota text-center">Selecciona los filtros y haz clic en consultar para ver los registros.</p>
+        </div>
+      </div>
+
+      <hr style="border: 0; border-top: 1px solid var(--color-borde); margin: 20px 0;">
+
+      <!-- Filtros habituales para registrar o buscar materiales para bitácora -->
+      <h3>Registrar / Actualizar Material Individual</h3>
+      <div class="filtros">
+        <select id="filtroMaquinaBitacora" onchange="actualizarFiltrosBitacora()"></select>
+        <select id="filtroCategoriaBitacora" onchange="renderBitacora()"><option value="">Todas las categorias</option></select>
+        <select id="filtroCortinaBitacora" onchange="renderBitacora()"><option value="">Todas las cortinas</option></select>
+        <input id="filtroTextoBitacora" type="search" placeholder="Buscar por nombre o UID..." oninput="renderBitacora()">
+      </div>
+      <div id="listaBitacora" class="lista"></div>
+    </section>
+
+    <!-- ---------- AGREGAR MATERIAL ---------- -->
+    <section id="vistaAgregar" class="vista oculto">
+      <h2>Agregar material</h2>
+      <form id="formAgregar" onsubmit="return agregarMaterialUI(event)">
+        <label>Maquina <select id="agMaquina" onchange="actualizarOpcionesPorMaquina('ag')"></select></label>
+        <label>Nombre <input id="agNombre" required></label>
+        <label>Categoria <select id="agCategoria" required onchange="actualizarSubcategorias('ag')"></select></label>
+        <label>Subcategoria
+          <input id="agSubcategoria" list="listaSubcategorias" placeholder="Escribe o elige una sugerida">
+          <datalist id="listaSubcategorias"></datalist>
+        </label>
+        <label>Marca <input id="agMarca"></label>
+        <label>Modelo <input id="agModelo"></label>
+        <label>Numero de serie <input id="agNumeroSerie"></label>
+        <label>Año fabricacion <input id="agAnoFabricacion" type="number" min="1950" max="2100"></label>
+        <label>Fecha adquirida <input id="agFechaAdquirida" type="date"></label>
+        <label>Cortina <select id="agCortina"></select></label>
+        <label>Posicion <select id="agPosicion"></select></label>
+        <label>Estado asignacion <select id="agEstadoAsignacion"></select></label>
+        <label>Estado operativo <select id="agEstadoOperativo"></select></label>
+        <label>Condicion <select id="agCondicion"></select></label>
+        <button type="submit" class="btn-principal">Guardar material</button>
+      </form>
+      <p id="agregarMensaje" class="mensaje"></p>
+    </section>
+
+    <!-- ---------- USUARIOS ---------- -->
+    <section id="vistaUsuarios" class="vista oculto">
+      <h2>Usuarios</h2>
+      <button class="btn-secundario" onclick="mostrarFormularioUsuario()">+ Nuevo usuario</button>
+      <form id="formNuevoUsuario" class="oculto" onsubmit="return agregarUsuarioUI(event)">
+        <label>Usuario <input id="nuUsuario" required></label>
+        <label>Nombre <input id="nuNombre" required></label>
+        <label>Contraseña <input id="nuContrasena" required></label>
+        <label>Permisos
+          <select id="nuPermisos">
+            <option>Aspirante</option>
+            <option>Voluntario</option>
+            <option>Encargado de material menor</option>
+            <option>Oficial</option>
+            <option>Administrador de sistema</option>
+          </select>
+        </label>
+        <button type="submit" class="btn-principal">Crear</button>
+      </form>
+      <div id="listaUsuarios" class="lista"></div>
+    </section>
+    
+    <!-- ---------- AUDITORIA DEL SISTEMA ---------- -->
+    <section id="vistaAuditoria" class="vista oculto">
+      <h2>Bitácora de Auditoría del Sistema</h2>
+      <p class="nota">Registro detallado de cambios, creaciones y eliminaciones (Exclusivo Administradores).</p>
+
+      <!-- Panel de Filtros -->
+      <div class="auditoria-filtros" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; background: var(--color-tarjeta); padding: 15px; border-radius: 10px; border: 1px solid var(--color-borde);">
+        <div>
+          <label><strong>Desde:</strong><input type="date" id="filtro-fecha-inicio" class="form-control" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--color-borde); background: var(--color-fondo); color: var(--color-texto);"></label>
+        </div>
+        <div>
+          <label><strong>Hasta:</strong><input type="date" id="filtro-fecha-fin" class="form-control" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--color-borde); background: var(--color-fondo); color: var(--color-texto);"></label>
+        </div>
+        <div>
+          <label><strong>Máquina / UID / Detalle:</strong><input type="text" id="filtro-maquina" placeholder="Ej: B20002" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid var(--color-borde); background: var(--color-fondo); color: var(--color-texto);"></label>
+        </div>
+        <div style="display: flex; align-items: flex-end;">
+          <button class="btn-principal" onclick="cargarAuditoriaConFiltros()" style="width: 100%; padding: 9px;">🔍 Aplicar Filtros</button>
+        </div>
+      </div>
+
+      <!-- Contenedor Dinámico de Tarjetas -->
+      <div id="lista-auditoria" class="lista"></div>
+    </section>
+
+    <!-- ---------- CUENTA ---------- -->
+    <section id="vistaCuenta" class="vista oculto">
+      <h2>Cambiar contraseña</h2>
+      <form id="formContrasena" onsubmit="return cambiarContrasenaUI(event)">
+        <label>Contraseña actual <input id="ccActual" type="password" required></label>
+        <label>Contraseña nueva <input id="ccNueva" type="password" required></label>
+        <button type="submit" class="btn-principal">Actualizar</button>
+      </form>
+      <p id="cuentaMensaje" class="mensaje"></p>
+      <p class="nota">El administrador de sistema siempre puede ver tu contraseña actual.</p>
+    </section>
+  </div>
+
+  <!-- ---------- MODAL EDITAR MATERIAL ---------- -->
+  <div id="modalEditar" class="modal oculto">
+    <div class="modal-contenido">
+      <h3>Editar material</h3>
+      <p id="editarUidTexto" class="nota"></p>
+
+      <div class="foto-actual">
+        <img id="edFotoPreview" class="foto-preview oculto">
+        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+          <button type="button" class="btn-secundario" onclick="abrirCamaraFoto()">📷 Tomar foto (Cámara interna)</button>
+          <label class="btn-secundario foto-boton" style="margin-bottom:0;">
+            📁 Subir archivo
+            <input id="edFotoInput" type="file" accept="image/*" class="oculto" onchange="subirFotoArchivoUI(event)">
+          </label>
+        </div>
+      </div>
+
+      <label>Categoria <select id="edCategoria" onchange="actualizarSubcategorias('ed')"></select></label>
+      <label>Subcategoria
+        <input id="edSubcategoria" list="listaSubcategoriasEd" placeholder="Escribe o elige una sugerida">
+        <datalist id="listaSubcategoriasEd"></datalist>
+      </label>
+      <label>Marca <input id="edMarca"></label>
+      <label>Modelo <input id="edModelo"></label>
+      <label>Cortina <select id="edCortina"></select></label>
+      <label>Posicion <select id="edPosicion"></select></label>
+      <label>Estado asignacion <select id="edEstadoAsignacion"></select></label>
+      <label>Estado operativo <select id="edEstadoOperativo"></select></label>
+      <label>Condicion <select id="edCondicion"></select></label>
+
+      <div class="mover-maquina" id="bloqueMoverMaquina">
+        <label>Mover a otra maquina
+          <select id="edMaquinaDestino"></select>
+        </label>
+        <button type="button" class="btn-secundario" onclick="moverMaterialUI()">Mover</button>
+      </div>
+
+      <div class="modal-botones">
+        <button class="btn-texto" onclick="eliminarMaterialUI()" id="btnEliminarMaterial">Eliminar</button>
+        <button class="btn-texto" onclick="cerrarModalEditar()">Cancelar</button>
+        <button class="btn-principal" onclick="guardarEdicionUI()">Guardar</button>
+      </div>
+      <p id="editarMensaje" class="mensaje"></p>
+    </div>
+  </div>
+
+  <!-- ---------- MODAL EDITAR / REGISTRAR BITACORA ---------- -->
+  <div id="modalBitacora" class="modal oculto">
+    <div class="modal-contenido">
+      <h3>Bitácora de Material</h3>
+      <p id="bitacoraUidTexto" class="nota"></p>
+      
+      <!-- Selector de Fecha obligatorio antes de registrar cambios -->
+      <label>Fecha del registro <input id="biFechaRegistro" type="date" required></label>
+      
+      <label>Ubicacion actual <input id="biUbicacionActual"></label>
+      <label>Nivel de carga <input id="biNivelCarga"></label>
+      <label>Historial de calibracion <input id="biHistorialCalibracion"></label>
+      <label>Ultima intervencion <input id="biUltimaIntervencion" type="date"></label>
+      <label>Proxima intervencion <input id="biProximaIntervencion" type="date"></label>
+      <label>Historial de daños <input id="biHistorialDanos"></label>
+      <label>Ultimo uso <input id="biUltimoUso" type="date"></label>
+      <label>Ultimo lavado <input id="biUltimoLavado" type="date"></label>
+      
+      <!-- Nueva variable solicitada -->
+      <label>Observaciones adicionales <textarea id="biObservacionesAdicionales" rows="3" style="width:100%; padding:10px; border-radius:10px; border:1px solid var(--color-borde); background:var(--color-tarjeta); color:var(--color-texto);"></textarea></label>
+
+      <div class="modal-botones">
+        <button type="button" class="btn-secundario" onclick="abrirHistorialBitacora()">📋 Ver historial completo</button>
+        <button class="btn-texto" onclick="cerrarModalBitacora()">Cancelar</button>
+        <button class="btn-principal" onclick="guardarBitacoraUI()">Guardar nuevo registro</button>
+      </div>
+      <p id="bitacoraMensaje" class="mensaje"></p>
+    </div>
+  </div>
+
+  <!-- ---------- MODAL HISTORIAL DE BITACORA (CRONOLÓGICO) ---------- -->
+  <div id="modalHistorialBitacora" class="modal oculto">
+    <div class="modal-contenido">
+      <h3>Historial por Fechas</h3>
+      <p id="historialUidTexto" class="nota"></p>
+      <div id="listaHistorialFechas" class="lista" style="max-height: 50vh; overflow-y: auto; margin-bottom: 15px;"></div>
+      <div class="modal-botones">
+        <button class="btn-principal" onclick="cerrarHistorialBitacora()">Volver</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- MODAL ESCANER QR ---------- -->
+  <div id="modalQR" class="modal oculto">
+    <div class="modal-contenido">
+      <h3>Escanear QR</h3>
+      <video id="videoQR" class="video-qr" playsinline muted></video>
+      <canvas id="canvasQR" class="oculto"></canvas>
+      <p id="qrMensaje" class="mensaje"></p>
+      <div class="modal-botones">
+        <button class="btn-texto" onclick="cerrarEscanerQR()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- MODAL CAMARA FOTO INTERNA ---------- -->
+  <div id="modalCamaraFoto" class="modal oculto">
+    <div class="modal-contenido">
+      <h3>Tomar foto del material</h3>
+      <div style="position: relative; overflow: hidden; border-radius: 10px; background: #000;">
+        <video id="videoCamaraFoto" class="video-qr" playsinline muted></video>
+      </div>
+      <canvas id="canvasCamaraFoto" class="oculto"></canvas>
+      <p id="camaraFotoMensaje" class="mensaje"></p>
+      <div class="modal-botones">
+        <button class="btn-texto" onclick="cerrarCamaraFoto()">Cancelar</button>
+        <button class="btn-principal" onclick="capturarYSubirFoto()">Capturar y guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
