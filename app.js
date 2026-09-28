@@ -87,10 +87,10 @@ function iniciarApp() {
   poblarSelectsMaquina();
   poblarFiltrosInventario();
 
-  // Iniciar directamente en el mapa del carro
-  mostrarTab('mapa');
-
   iniciarRealtimeInventario();
+
+  // El punto de entrada ahora es el menú principal (ver portal.js)
+  iniciarPortal();
 }
 
 // ---------------- TABS ----------------

@@ -22,7 +22,87 @@
     </div>
   </div>
 
-  <!-- ===================== APP ===================== -->
+
+  <!-- ===================== MENU PRINCIPAL ===================== -->
+  <div id="pantallaMenu" class="pantalla oculto">
+    <header class="topbar">
+      <div>
+        <strong id="nombreUsuarioMenu"></strong>
+        <span id="rolUsuarioMenu" class="rol-badge"></span>
+      </div>
+      <div class="topbar-acciones">
+        <button class="btn-texto" onclick="cerrarSesionUI()" style="color:#fff;font-weight:bold;">Cerrar Sesión</button>
+      </div>
+    </header>
+    <div class="menu-principal">
+      <h1 class="menu-titulo">🔥 Portal Zweite</h1>
+      <p class="nota" style="text-align:center;margin-bottom:20px;">Selecciona una sección</p>
+      <div class="menu-grid">
+        <button class="menu-card" onclick="mostrarPantalla('emergencia')">
+          <span class="menu-card-icono">🚒</span><span>Registrar Emergencia</span>
+        </button>
+        <button class="menu-card" onclick="mostrarPantalla('guardia')">
+          <span class="menu-card-icono">📋</span><span>Registrar Guardia / Estadísticas</span>
+        </button>
+        <button class="menu-card" onclick="mostrarPantalla('inventario')">
+          <span class="menu-card-icono">📦</span><span>Revisar Inventario</span>
+        </button>
+        <button class="menu-card" onclick="mostrarPantalla('perfil')">
+          <span class="menu-card-icono">👤</span><span>Mi Perfil</span>
+        </button>
+        <button class="menu-card oculto" id="menuCardAdmin" onclick="mostrarPantalla('admin')">
+          <span class="menu-card-icono">🛠️</span><span>Panel Administrador</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== EMERGENCIA ===================== -->
+  <div id="pantallaEmergencia" class="pantalla oculto">
+    <header class="topbar">
+      <button class="btn-icono" onclick="volverAlMenu()">← Menú</button>
+      <strong>🚒 Registrar Emergencia</strong>
+      <span style="width:60px;"></span>
+    </header>
+    <div id="contenidoEmergencia" class="vista" style="max-width:640px;"></div>
+  </div>
+
+  <!-- ===================== GUARDIA ===================== -->
+  <div id="pantallaGuardia" class="pantalla oculto">
+    <header class="topbar">
+      <button class="btn-icono" onclick="volverAlMenu()">← Menú</button>
+      <strong>📋 Registrar Guardia</strong>
+      <span style="width:60px;"></span>
+    </header>
+    <div id="contenidoGuardia" class="vista" style="max-width:640px;"></div>
+  </div>
+
+  <!-- ===================== MI PERFIL ===================== -->
+  <div id="pantallaPerfil" class="pantalla oculto">
+    <header class="topbar">
+      <button class="btn-icono" onclick="volverAlMenu()">← Menú</button>
+      <strong>👤 Mi Perfil</strong>
+      <span style="width:60px;"></span>
+    </header>
+    <div id="contenidoPerfil" class="vista" style="max-width:640px;"></div>
+  </div>
+
+  <!-- ===================== PANEL ADMINISTRADOR ===================== -->
+  <div id="pantallaAdmin" class="pantalla oculto">
+    <header class="topbar">
+      <button class="btn-icono" onclick="volverAlMenu()">← Menú</button>
+      <strong>🛠️ Panel Administrador</strong>
+      <span style="width:60px;"></span>
+    </header>
+    <nav class="tabs">
+      <button class="tab activo" data-admintab="emergencias" onclick="mostrarAdminTab('emergencias')">Emergencias</button>
+      <button class="tab" data-admintab="guardias" onclick="mostrarAdminTab('guardias')">Guardias</button>
+      <button class="tab" data-admintab="auditoria" onclick="mostrarAdminTab('auditoria')">Auditoría</button>
+    </nav>
+    <div id="contenidoAdmin" class="auditoria-container"></div>
+  </div>
+
+  <!-- ===================== APP (INVENTARIO) ===================== -->
   <div id="app" class="pantalla oculto">
     <header class="topbar">
       <div>
@@ -30,6 +110,7 @@
         <span id="rolUsuarioTop" class="rol-badge"></span>
       </div>
       <div class="topbar-acciones">
+        <button class="btn-icono" onclick="volverAlMenu()">← Menú</button>
         <button class="btn-icono" onclick="abrirEscanerQR()" title="Escanear QR">📷 QR</button>
         <button class="btn-texto" onclick="cerrarSesionUI()" style="color: #ffffff; font-weight: bold;">Cerrar Sesión</button>
       </div>
@@ -395,5 +476,6 @@
 
   <script src="config.js"></script>
   <script src="app.js"></script>
+  <script src="portal.js"></script>
 </body>
 </html>
