@@ -336,3 +336,22 @@ form label { display: block; margin-bottom: 10px; font-size: 0.85rem; color: #55
   background: rgba(124, 45, 61, 0.08);
   color: var(--color-primario);
 }
+/* ---------- NIVELES DE CARGA ---------- */
+.check-fila { display: flex; align-items: center; gap: 8px; }
+.check-fila input { width: auto; margin: 0; }
+.carga-item { align-items: flex-start; }
+.carga-item .item-detalle { white-space: normal; }
+.carga-barra { height: 10px; background: var(--color-borde); border-radius: 999px; overflow: hidden; margin: 8px 0 4px; }
+.carga-barra-fill { height: 100%; border-radius: 999px; }
+.nivel-ok { background: var(--color-ok); }
+.nivel-medio { background: #e69100; }
+.nivel-bajo { background: var(--color-error); }
+.carga-nivel-texto { font-size: 0.9rem; font-weight: 700; }
+.carga-linea { font-size: 0.8rem; margin-top: 3px; }
+.carga-alerta { margin-top: 8px; padding: 6px 10px; border-radius: 8px; font-size: 0.82rem; font-weight: 600; }
+.carga-alerta-amarilla { background: #fff3cd; color: #7a5200; border: 1px solid #f0c36d; }
+.carga-alerta-roja { background: var(--color-error); color: #fff; font-weight: 800; animation: pulsoAlerta 1.4s infinite; }
+.carga-por-vencer { border: 2px solid #e69100; }
+.carga-vencida { border: 2px solid var(--color-error); background: rgba(179, 38, 30, 0.08); }
+.carga-btn { margin: 8px 0 0; font-size: 0.8rem; }
+@keyframes pulsoAlerta { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }

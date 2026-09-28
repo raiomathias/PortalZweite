@@ -42,6 +42,7 @@
       <button class="tab oculto" data-tab="agregar" id="tabBtnAgregar" onclick="mostrarTab('agregar')">Agregar</button>
       <button class="tab oculto" data-tab="usuarios" id="tabBtnUsuarios" onclick="mostrarTab('usuarios')">Usuarios</button>
       <button class="tab oculto" data-tab="auditoria" id="tabBtnAuditoria" onclick="mostrarTab('auditoria'); cargarAuditoriaConFiltros();">Auditoría</button>
+      <button class="tab oculto" data-tab="cargas" id="tabBtnCargas" onclick="mostrarTab('cargas')">🔋 Niveles de Carga</button>
       <button class="tab" data-tab="cuenta" onclick="mostrarTab('cuenta')">Cuenta</button>
     </nav>
 
@@ -168,6 +169,25 @@
       <div id="listaBitacora" class="lista"></div>
     </section>
 
+    <!-- ---------- NIVELES DE CARGA ---------- -->
+    <section id="vistaCargas" class="vista oculto">
+      <h2>🔋 Niveles de Carga</h2>
+      <p class="nota">Equipos marcados como "Requiere carga". Se actualiza al registrar la Bitácora.</p>
+      <div class="filtros">
+        <select id="filtroMaquinaCarga" onchange="actualizarFiltrosCarga()"></select>
+        <select id="filtroCategoriaCarga" onchange="renderCargas()"><option value="">Todas las categorias</option></select>
+        <select id="filtroCortinaCarga" onchange="renderCargas()"><option value="">Todas las cortinas</option></select>
+        <select id="filtroNivelCarga" onchange="renderCargas()">
+          <option value="">Todos los niveles</option>
+          <option value="50">Menos de 50%</option>
+          <option value="20">Menos de 20%</option>
+          <option value="0">En 0%</option>
+        </select>
+        <input id="filtroTextoCarga" type="search" placeholder="Buscar por nombre o UID..." oninput="renderCargas()">
+      </div>
+      <div id="listaCargas" class="lista"></div>
+    </section>
+
     <!-- ---------- AGREGAR MATERIAL ---------- -->
     <section id="vistaAgregar" class="vista oculto">
       <h2>Agregar material</h2>
@@ -189,6 +209,7 @@
         <label>Estado asignacion <select id="agEstadoAsignacion"></select></label>
         <label>Estado operativo <select id="agEstadoOperativo"></select></label>
         <label>Condicion <select id="agCondicion"></select></label>
+        <label class="check-fila"><input type="checkbox" id="agRequiereCarga"> Requiere carga periódica</label>
         <button type="submit" class="btn-principal">Guardar material</button>
       </form>
       <p id="agregarMensaje" class="mensaje"></p>
@@ -283,6 +304,7 @@
       <label>Estado asignacion <select id="edEstadoAsignacion"></select></label>
       <label>Estado operativo <select id="edEstadoOperativo"></select></label>
       <label>Condicion <select id="edCondicion"></select></label>
+      <label class="check-fila"><input type="checkbox" id="edRequiereCarga"> Requiere carga periódica</label>
 
       <div class="mover-maquina" id="bloqueMoverMaquina">
         <label>Mover a otra maquina
@@ -310,7 +332,7 @@
       <label>Fecha del registro <input id="biFechaRegistro" type="date" required></label>
       
       <label>Ubicacion actual <input id="biUbicacionActual"></label>
-      <label>Nivel de carga <input id="biNivelCarga"></label>
+      <label>Nivel de carga (%) <input id="biNivelCarga" type="number" min="0" max="100" step="1" inputmode="numeric" placeholder="0 a 100"></label>
       <label>Historial de calibracion <input id="biHistorialCalibracion"></label>
       <label>Ultima intervencion <input id="biUltimaIntervencion" type="date"></label>
       <label>Proxima intervencion <input id="biProximaIntervencion" type="date"></label>

@@ -81,6 +81,7 @@ function iniciarApp() {
   document.getElementById('tabBtnAgregar').classList.toggle('oculto', SESION.permisosObj.puede_agregar_eliminar_material !== true);
   document.getElementById('tabBtnUsuarios').classList.toggle('oculto', SESION.permisosObj.acceso_panel_usuarios !== true);
   document.getElementById('tabBtnBitacora').classList.toggle('oculto', SESION.permisosObj.puede_ver !== true);
+  document.getElementById('tabBtnCargas').classList.toggle('oculto', SESION.permisosObj.puede_ver !== true);
   document.getElementById('tabBtnAuditoria').classList.toggle('oculto', SESION.permisos !== 'Administrador de sistema');
 
   poblarSelectsMaquina();
@@ -105,6 +106,7 @@ function mostrarTab(nombre) {
     renderBitacora();
     inicializarHistorialGlobalEnBitacora();
   }
+  if (nombre === 'cargas') renderCargas();
   if (nombre === 'agregar') actualizarOpcionesPorMaquina('ag');
   if (nombre === 'usuarios') cargarUsuarios();
 }
@@ -120,8 +122,12 @@ function poblarSelectsMaquina() {
   document.getElementById('filtroMaquinaBitacora').innerHTML = '<option value="">Todas las maquinas</option>' +
     DB.maquinas.map(m => `<option value="${m}">${m}</option>`).join('');
 
+  document.getElementById('filtroMaquinaCarga').innerHTML = '<option value="">Todas las maquinas</option>' +
+    DB.maquinas.map(m => `<option value="${m}">${m}</option>`).join('');
+
   actualizarOpcionesPorMaquina('ag');
   actualizarFiltrosBitacora();
+  actualizarFiltrosCarga();
 }
 
 function actualizarFiltrosBitacora() {
@@ -269,7 +275,8 @@ async function agregarMaterialUI(event) {
     estadoAsignacion: val('agEstadoAsignacion'), 
     estadoOperativo: val('agEstadoOperativo'), 
     condicion: val('agCondicion'),
-    ubicacionActual: ubicacionFinal
+    ubicacionActual: ubicacionFinal,
+    requiereCarga: document.getElementById('agRequiereCarga').checked
   };
 
   const msg = document.getElementById('agregarMensaje');
@@ -312,6 +319,7 @@ function abrirModalEditar(item) {
   document.getElementById('edEstadoAsignacion').value = item.estado_asignacion || '';
   document.getElementById('edEstadoOperativo').value = item.estado_operativo || '';
   document.getElementById('edCondicion').value = item.condicion || '';
+  document.getElementById('edRequiereCarga').checked = item.requiere_carga === true;
 
   const preview = document.getElementById('edFotoPreview');
   if (item.foto_url) { preview.src = item.foto_url; preview.classList.remove('oculto'); }
@@ -352,9 +360,20 @@ async function guardarEdicionUI() {
   });
   if (error) { msg.textContent = error.message; msg.className = 'mensaje mensaje-error'; return; }
 
-  actualizarItemLocal(ITEM_EN_EDICION.uid_inventario, data);
+  let itemFinal = data;
+  const nuevoReq = document.getElementById('edRequiereCarga').checked;
+  if (nuevoReq !== (ITEM_EN_EDICION.requiere_carga === true)) {
+    const r = await cliente.rpc('cambiar_requiere_carga', {
+      p_token: SESION.token, p_uid: ITEM_EN_EDICION.uid_inventario, p_valor: nuevoReq
+    });
+    if (r.error) { msg.textContent = r.error.message; msg.className = 'mensaje mensaje-error'; return; }
+    itemFinal = r.data;
+  }
+
+  actualizarItemLocal(ITEM_EN_EDICION.uid_inventario, itemFinal);
   cerrarModalEditar();
   renderInventario();
+  renderCargas();
 }
 
 async function moverMaterialUI() {
@@ -608,6 +627,7 @@ function abrirModalBitacora(item) {
   const ubicacionPorDefecto = (item.maquina + ' ' + (item.cortina || '')).trim();
   document.getElementById('biUbicacionActual').value = item.ubicacion_actual || ubicacionPorDefecto;
   document.getElementById('biNivelCarga').value = '';
+  document.getElementById('biNivelCarga').placeholder = item.requiere_carga === true ? 'Obligatorio (0 a 100)' : '0 a 100 (opcional)';
   document.getElementById('biHistorialCalibracion').value = '';
   document.getElementById('biUltimaIntervencion').value = '';
   document.getElementById('biProximaIntervencion').value = '';
@@ -633,10 +653,23 @@ async function guardarBitacoraUI() {
     return;
   }
 
+  const nivelTxt = val('biNivelCarga').trim();
+  if (nivelTxt === '' && ITEM_BITACORA_EN_EDICION.requiere_carga === true) {
+    alert('Este material requiere carga: debes ingresar el nivel de carga (0 a 100).');
+    return;
+  }
+  if (nivelTxt !== '') {
+    const nv = Number(nivelTxt);
+    if (!Number.isInteger(nv) || nv < 0 || nv > 100) {
+      alert('El nivel de carga debe ser un número entero entre 0 y 100.');
+      return;
+    }
+  }
+
   const cambios = {
     fechaRegistro: fechaReg,
     ubicacionActual: val('biUbicacionActual'),
-    nivelCarga: val('biNivelCarga'),
+    nivelCarga: nivelTxt,
     historialCalibracion: val('biHistorialCalibracion'),
     ultimaIntervencion: val('biUltimaIntervencion'),
     proximaIntervencion: val('biProximaIntervencion'),
@@ -665,11 +698,13 @@ async function guardarBitacoraUI() {
     return; 
   }
 
+  if (data && data.item) actualizarItemLocal(ITEM_BITACORA_EN_EDICION.uid_inventario, data.item);
   msg.textContent = '¡Registro de bitácora guardado con éxito!';
   msg.className = 'mensaje';
   setTimeout(() => {
     cerrarModalBitacora();
     renderBitacora();
+    renderCargas();
   }, 1000);
 }
 
@@ -907,6 +942,7 @@ function iniciarRealtimeInventario() {
         if (!error && data && data.inventario) {
           DB.inventario = data.inventario;
           renderInventario();
+          renderCargas();
           
           // Si estás viendo la bitácora, también actualizarla
           const vistaBitacora = document.getElementById('vistaBitacora');
@@ -1196,4 +1232,147 @@ function irDesdeMapa(destino) {
     document.getElementById('filtroTextoBitacora').value = '';
     mostrarTab('bitacora');
   }
+}
+
+// ---------------- NIVELES DE CARGA ----------------
+
+const DIAS_ALERTA_INTERVENCION = 15;
+
+function diasHasta(fecha) {
+  if (!fecha) return null;
+  const [a, m, d] = String(fecha).slice(0, 10).split('-').map(Number);
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  return Math.round((new Date(a, m - 1, d) - hoy) / 86400000);
+}
+
+function formatearFecha(fecha) {
+  if (!fecha) return '';
+  const [a, m, d] = String(fecha).slice(0, 10).split('-');
+  return d + '/' + m + '/' + a;
+}
+
+function textoHace(fecha) {
+  const d = diasHasta(fecha);
+  if (d === null) return '';
+  if (d === 0) return 'hoy';
+  if (d < 0) return 'hace ' + Math.abs(d) + (d === -1 ? ' día' : ' días');
+  return 'en el futuro';
+}
+
+function actualizarFiltrosCarga() {
+  const maquina = val('filtroMaquinaCarga');
+  const cats = [...new Set(DB.categorias.filter(c => !maquina || c.maquina === maquina).map(c => c.categoria))];
+  document.getElementById('filtroCategoriaCarga').innerHTML = '<option value="">Todas las categorias</option>' +
+    cats.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  const corts = [...new Set(DB.cortinas.filter(c => !maquina || c.maquina === maquina).map(c => c.cortina))];
+  document.getElementById('filtroCortinaCarga').innerHTML = '<option value="">Todas las cortinas</option>' +
+    corts.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+  renderCargas();
+}
+
+function renderCargas() {
+  const maquina = val('filtroMaquinaCarga');
+  const categoria = val('filtroCategoriaCarga');
+  const cortina = val('filtroCortinaCarga');
+  const nivelMax = val('filtroNivelCarga');
+  const texto = val('filtroTextoCarga').trim().toLowerCase();
+
+  const items = DB.inventario.filter(it => {
+    if (it.requiere_carga !== true) return false;
+    if (maquina && it.maquina !== maquina) return false;
+    if (categoria && it.categoria !== categoria) return false;
+    if (cortina && it.cortina !== cortina) return false;
+    if (texto && !((it.nombre || '').toLowerCase().includes(texto) || (it.uid_inventario || '').toLowerCase().includes(texto))) return false;
+    const n = it.nivel_carga;
+    const tiene = n !== null && n !== undefined;
+    if (nivelMax === '0' && !(tiene && n === 0)) return false;
+    if (nivelMax === '20' && !(tiene && n < 20)) return false;
+    if (nivelMax === '50' && !(tiene && n < 50)) return false;
+    return true;
+  });
+
+  const prioridad = it => {
+    const d = diasHasta(it.proxima_intervencion);
+    if (d !== null && d < 0) return 0;
+    if (d !== null && d <= DIAS_ALERTA_INTERVENCION) return 1;
+    return 2;
+  };
+  // Sin registro al final; luego vencidas, por vencer y menor nivel primero
+  items.sort((a, b) =>
+    ((a.nivel_carga == null) - (b.nivel_carga == null)) ||
+    (prioridad(a) - prioridad(b)) ||
+    ((a.nivel_carga ?? 0) - (b.nivel_carga ?? 0)) ||
+    (a.nombre || '').localeCompare(b.nombre || '')
+  );
+
+  const contenedor = document.getElementById('listaCargas');
+  contenedor.innerHTML = '';
+  if (!items.length) {
+    contenedor.innerHTML = '<p class="nota">No hay equipos con carga que coincidan con los filtros.</p>';
+    return;
+  }
+  items.forEach(item => contenedor.appendChild(crearTarjetaCarga(item)));
+}
+
+function crearTarjetaCarga(item) {
+  const div = document.createElement('div');
+  div.className = 'item-material carga-item';
+
+  const puntoClase = item.estado_operativo === 'Operativo' ? 'estado-operativo' : 'estado-no-operativo';
+  const fotoHtml = item.foto_url ? '<img class="item-foto-mini" src="' + escapeHtml(item.foto_url) + '">' : '';
+
+  const n = item.nivel_carga;
+  const tieneNivel = n !== null && n !== undefined;
+  let nivelHtml;
+  if (tieneNivel) {
+    const clase = n < 20 ? 'nivel-bajo' : (n < 50 ? 'nivel-medio' : 'nivel-ok');
+    nivelHtml =
+      '<div class="carga-barra"><div class="carga-barra-fill ' + clase + '" style="width:' + Math.max(n, 2) + '%"></div></div>' +
+      '<div class="carga-nivel-texto">' + n + '%</div>' +
+      '<div class="carga-linea">Último registro: ' + formatearFecha(item.fecha_ultimo_nivel_carga) +
+        ' (' + textoHace(item.fecha_ultimo_nivel_carga) + ')</div>';
+  } else {
+    nivelHtml = '<div class="carga-linea"><em>Sin registro de carga</em></div>';
+  }
+
+  let calibHtml = '';
+  if (item.historial_calibracion) {
+    calibHtml = '<div class="carga-linea">🔧 <strong>Calibración:</strong> ' + escapeHtml(item.historial_calibracion) +
+      (item.fecha_ultima_calibracion ? ' (' + formatearFecha(item.fecha_ultima_calibracion) + ')' : '') + '</div>';
+  }
+
+  let intervHtml = '';
+  if (item.ultima_intervencion) {
+    intervHtml += '<div class="carga-linea">🛠️ <strong>Última intervención:</strong> ' + formatearFecha(item.ultima_intervencion) + '</div>';
+  }
+  if (item.proxima_intervencion) {
+    intervHtml += '<div class="carga-linea">📅 <strong>Próxima intervención:</strong> ' + formatearFecha(item.proxima_intervencion) + '</div>';
+  }
+
+  let alertaHtml = '';
+  const dias = diasHasta(item.proxima_intervencion);
+  if (dias !== null && dias < 0) {
+    div.classList.add('carga-vencida');
+    alertaHtml = '<div class="carga-alerta carga-alerta-roja">🚨 INTERVENCIÓN VENCIDA hace ' + Math.abs(dias) + (dias === -1 ? ' día' : ' días') + '</div>';
+  } else if (dias !== null && dias <= DIAS_ALERTA_INTERVENCION) {
+    div.classList.add('carga-por-vencer');
+    alertaHtml = '<div class="carga-alerta carga-alerta-amarilla">⚠️ Intervención ' +
+      (dias === 0 ? 'HOY' : 'en ' + dias + (dias === 1 ? ' día' : ' días')) + '</div>';
+  }
+
+  div.innerHTML =
+    fotoHtml +
+    '<div class="item-info">' +
+      '<div class="item-nombre"><span class="estado-punto ' + puntoClase + '"></span>' + escapeHtml(item.nombre) + '</div>' +
+      '<div class="item-detalle">' + escapeHtml(item.subcategoria || '') + ' · ' + escapeHtml(item.uid_inventario) +
+        ' · ' + escapeHtml(item.cortina || '') + ' · ' + escapeHtml(item.maquina) + '</div>' +
+      nivelHtml + calibHtml + intervHtml + alertaHtml +
+      '<button type="button" class="btn-secundario carga-btn">📋 Ver historial</button>' +
+    '</div>';
+
+  div.querySelector('.carga-btn').addEventListener('click', () => {
+    ITEM_BITACORA_EN_EDICION = item;
+    abrirHistorialBitacora();
+  });
+  return div;
 }
