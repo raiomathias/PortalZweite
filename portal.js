@@ -17,8 +17,6 @@ async function cargarDirectorioPD() {
   const { data, error } = await cliente.rpc('pd_directorio', { p_token: SESION.token });
   if (!error) {
     DB.directorio = data;
-    // Aviso temprano si el backend devolvió algo pero alguna categoría vino vacía,
-    // para no volver a depurar "a ciegas" por qué no aparece nadie en las listas.
     ['honorarios', 'activos', 'confederados', 'aspirantes', 'conductores', 'jefes', 'todos'].forEach(cat => {
       if (!Array.isArray(DB.directorio[cat]) || !DB.directorio[cat].length) {
         console.warn('pd_directorio: la categoría "' + cat + '" llegó vacía.', DB.directorio);
@@ -33,14 +31,9 @@ async function cargarDirectorioPD() {
 // ============================================================
 // BUSCADOR GENERICO DE PERSONAS (por clave radial o por nombre)
 // ============================================================
-// Reemplaza los <select> gigantes por un campo de texto con resultados
-// en vivo. Se usa tanto para agregar asistencia (multiple) como para
-// elegir Mando de Compañía, Jefe de Guardia y Conductor (unico).
 
 const BUSCADOR_PERSONA_CTX = {};
 
-/** tipo: 'multi' (agrega a un array y sigue mostrando el buscador) o
- *  'unico' (reemplaza una selección única y oculta el buscador). */
 function tplBuscadorPersona(id, placeholder) {
   return `<div class="buscador-persona">
     <div class="buscador-fila">
@@ -63,7 +56,6 @@ function filtrarBuscadorPersona(id) {
   const cont = document.getElementById('resultados_' + id);
   const q = (input.value || '').trim().toLowerCase();
 
-  // Sin texto: se muestra la lista completa (scrolleable). Con texto: se filtra por clave o nombre.
   const lista = (ctx.lista || []).slice().sort((a, b) =>
     String(a.nombre).localeCompare(String(b.nombre), 'es'));
   const coincidencias = q
@@ -80,7 +72,6 @@ function filtrarBuscadorPersona(id) {
   cont.classList.remove('oculto');
 }
 
-/** Botón "▾ Lista": abre/cierra el desplegable completo sin necesidad de escribir. */
 function alternarListaPersonas(id) {
   const cont = document.getElementById('resultados_' + id);
   if (!cont.classList.contains('oculto')) { cont.classList.add('oculto'); return; }
@@ -100,7 +91,6 @@ function seleccionarBuscadorPersona(id, clave) {
   if (cont) { cont.classList.add('oculto'); cont.innerHTML = ''; }
 }
 
-// Cierra cualquier dropdown de resultados si se hace clic fuera de él.
 document.addEventListener('click', function (e) {
   document.querySelectorAll('.resultados-busqueda:not(.oculto)').forEach(cont => {
     const contenedorPadre = cont.closest('.buscador-persona');
@@ -111,7 +101,7 @@ document.addEventListener('click', function (e) {
 });
 
 // ============================================================
-// TAGS DE TEXTO SIMPLE (ej: Máquinas concurrentes)
+// TAGS DE TEXTO SIMPLE
 // ============================================================
 
 const TAGS_TEXTO = {};
@@ -148,7 +138,6 @@ function onKeydownTagsTexto(id, e) {
   if (t) { TAGS_TEXTO[id].push(t); input.value = ''; renderTagsTexto(id); }
 }
 
-/** Convierte en tag el texto que quedó escrito sin coma ni Enter. */
 function confirmarTagTexto(id) {
   const input = document.getElementById('tagIn_' + id);
   if (!input) return;
@@ -174,7 +163,7 @@ function renderTagsTexto(id) {
 }
 
 // ============================================================
-// TAGS DE MATERIAL + CANTIDAD (Material menor utilizado)
+// TAGS DE MATERIAL + CANTIDAD
 // ============================================================
 
 const TAGS_MATERIAL = {};
@@ -221,8 +210,7 @@ function textoTagsMaterial(id) {
 }
 
 // ============================================================
-// HORA EN TEXTO FORZADO A FORMATO 24H (evita el selector nativo
-// de 12h/AM-PM que algunos celulares muestran para type="time")
+// HORA 24H
 // ============================================================
 
 function formatearHora24(campo) {
@@ -246,18 +234,13 @@ function mostrarPantalla(nombre) {
 
 function volverAlMenu() { mostrarPantalla('menu'); }
 
-function opcionesPersonas(lista) {
-  return '<option value="">-- Selecciona --</option>' +
-    (lista || []).map(p => `<option value="${escapeHtml(p.clave)}">${escapeHtml(p.nombreConClave)}</option>`).join('');
-}
-
 // ============================================================
 // EMERGENCIA
 // ============================================================
 
 let EMERG_ASISTENTES = { honorarios: [], activos: [], confederados: [], aspirantes: [] };
-let EMERG_MANDO_COMPANIA = null; // { clave, nombre }
-let EMERG_CONDUCTORES = {}; // { 'B-2': {clave,nombre} | null, ... }
+let EMERG_Mando_COMPANIA = null;
+let EMERG_CONDUCTORES = {};
 
 function renderConductorUnidadElegido(u) {
   const cont = document.getElementById('emCond_' + u + '_elegido');
@@ -295,7 +278,7 @@ function abrirFormularioEmergencia() {
     <div id="emMandoCompaniaElegido"></div>
 
     <label>Máquinas concurrentes (opcional)</label>
-    <p class="nota" style="margin:0 0 6px;">Escribe una máquina y presiona <strong>coma ( , )</strong> o <strong>Enter</strong> para agregarla a la lista. Repite con cada máquina.</p>
+    <p class="nota" style="margin:0 0 6px;">Escribe una máquina y presiona <strong>coma ( , )</strong> o <strong>Enter</strong> para agregarla a la lista.</p>
     ${tplTagsTexto('emMaquinas', 'Ej: B1, B2, HX2, R4')}
 
     <label>Tipo de acto <input id="emTipoActo" placeholder="Ej: 10-5-1"></label>
@@ -307,7 +290,6 @@ function abrirFormularioEmergencia() {
     <label>Observaciones / antecedentes <textarea id="emObsAntecedentes" rows="2"></textarea></label>
 
     <h3 class="categoria-titulo">Material mayor concurrente</h3>
-    <p class="nota">Opcional — deja todo sin marcar si el parte no involucró máquinas (ej. asambleas).</p>
     <div class="filtros">
       <label class="check-fila"><input type="checkbox" class="emMatMayor" value="B-2"> B-2</label>
       <label class="check-fila"><input type="checkbox" class="emMatMayor" value="HX-2"> HX-2</label>
@@ -334,7 +316,7 @@ function abrirFormularioEmergencia() {
   `;
 
   EMERG_ASISTENTES = { honorarios: [], activos: [], confederados: [], aspirantes: [] };
-  EMERG_MANDO_COMPANIA = null;
+  EMERG_Mando_COMPANIA = null;
   EMERG_CONDUCTORES = {};
   document.getElementById('emMandoCompaniaElegido').innerHTML = '';
 
@@ -343,7 +325,7 @@ function abrirFormularioEmergencia() {
     document.getElementById('emChips_' + cat).innerHTML = '';
   });
   registrarBuscadorPersona('emMandoCompania', DB.directorio.todos, persona => {
-    EMERG_MANDO_COMPANIA = persona;
+    EMERG_Mando_COMPANIA = persona;
     renderMandoCompaniaElegido();
   });
 
@@ -354,9 +336,9 @@ function abrirFormularioEmergencia() {
 
 function renderMandoCompaniaElegido() {
   const cont = document.getElementById('emMandoCompaniaElegido');
-  cont.innerHTML = EMERG_MANDO_COMPANIA
-    ? `<div class="persona-elegida"><span>${escapeHtml(EMERG_MANDO_COMPANIA.nombre)} <span class="nota">(${escapeHtml(EMERG_MANDO_COMPANIA.clave)})</span></span>
-        <span class="quitar" onclick="EMERG_MANDO_COMPANIA=null; renderMandoCompaniaElegido();">✕</span></div>`
+  cont.innerHTML = EMERG_Mando_COMPANIA
+    ? `<div class="persona-elegida"><span>${escapeHtml(EMERG_Mando_COMPANIA.nombre)} <span class="nota">(${escapeHtml(EMERG_Mando_COMPANIA.clave)})</span></span>
+        <span class="quitar" onclick="EMERG_Mando_COMPANIA=null; renderMandoCompaniaElegido();">✕</span></div>`
     : '<p class="nota">Nadie seleccionado aún.</p>';
 }
 
@@ -412,7 +394,7 @@ function renderUnidadesEmergencia() {
 }
 
 async function guardarEmergencia() {
-  confirmarTagTexto('emMaquinas'); // si quedó una máquina escrita sin coma, se agrega igual
+  confirmarTagTexto('emMaquinas');
   const msg = document.getElementById('emMensaje');
   msg.textContent = ''; msg.className = 'mensaje';
 
@@ -424,7 +406,7 @@ async function guardarEmergencia() {
   for (const id in requeridos) {
     if (!val(id).trim()) { msg.textContent = 'Falta: ' + requeridos[id]; msg.className = 'mensaje mensaje-error'; return; }
   }
-  if (!EMERG_MANDO_COMPANIA) {
+  if (!EMERG_Mando_COMPANIA) {
     msg.textContent = 'Selecciona el Mando de Compañía.'; msg.className = 'mensaje mensaje-error'; return;
   }
 
@@ -448,7 +430,7 @@ async function guardarEmergencia() {
 
   const payload = {
     fechaInicio: val('emFecha'), horaInicio: val('emHoraInicio'), horaTermino: val('emHoraTermino'),
-    horaCierre: val('emHoraCierre'), mandoCBPM: val('emMandoCBPM'), mandoCompania: EMERG_MANDO_COMPANIA.clave,
+    horaCierre: val('emHoraCierre'), mandoCBPM: val('emMandoCBPM'), mandoCompania: EMERG_Mando_COMPANIA.clave,
     maquinas: (TAGS_TEXTO['emMaquinas'] || []).join(', '), tipoActo: val('emTipoActo'), direccion: val('emDireccion'), ciudad: val('emCiudad'),
     propietarioRut: val('emPropietario'), encargadoRut: val('emEncargado'), contacto: val('emContacto'),
     observacionesAntecedentes: val('emObsAntecedentes'), materialMayor, bombaInterna,
@@ -470,7 +452,7 @@ async function generarPDFParte(parteId, codigo, msg) {
 
     const resp = await fetch(CONFIG.APPS_SCRIPT_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' }, // evita el preflight CORS en Apps Script
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
       body: JSON.stringify({ secreto: CONFIG.APPS_SCRIPT_SECRET, payload })
     });
     const resultado = await resp.json();
@@ -488,7 +470,7 @@ async function generarPDFParte(parteId, codigo, msg) {
     await cliente.rpc('pd_actualizar_pdf', {
       p_token: SESION.token, p_id: parteId, p_estado: 'error', p_slides_url: null, p_pdf_url: null, p_error: texto
     });
-    msg.innerHTML = `⚠️ El parte <strong>${escapeHtml(codigo)}</strong> quedó guardado, pero el PDF falló: ` +
+    msg.innerHTML = `⚠️️ El parte <strong>${escapeHtml(codigo)}</strong> quedó guardado, pero el PDF falló: ` +
       `${escapeHtml(texto)}. Avisa al administrador para generarlo manualmente.`;
     msg.className = 'mensaje mensaje-error';
   }
@@ -499,9 +481,9 @@ async function generarPDFParte(parteId, codigo, msg) {
 // ============================================================
 
 let GUARDIA_ACTUAL = { id: null, version: null };
-let GUARDIA_JEFE = null;      // { clave, nombre, pieza, cama, observacion, deTurno }
-let GUARDIA_CONDUCTOR = null; // idem
-let GUARDIA_INTEGRANTES = []; // idem, sin esJefe/esConductor (siempre resto de la lista)
+let GUARDIA_JEFE = null;
+let GUARDIA_CONDUCTOR = null;
+let GUARDIA_INTEGRANTES = [];
 
 function tplPersonaRolFija(idBase, titulo) {
   return `<div class="mover-maquina" id="bloque_${idBase}">
@@ -561,7 +543,6 @@ function abrirFormularioGuardia() {
   cargarGuardiaExistente();
 }
 
-/** Cualquiera del directorio general, excepto quien ya sea Jefe o Conductor. */
 function listaDisponibleIntegrantes() {
   const excluidas = new Set([GUARDIA_JEFE && GUARDIA_JEFE.clave, GUARDIA_CONDUCTOR && GUARDIA_CONDUCTOR.clave].filter(Boolean));
   return (DB.directorio.todos || []).filter(p => !excluidas.has(p.clave));
@@ -570,7 +551,6 @@ function listaDisponibleIntegrantes() {
 function seleccionarRolFijo(idBase, persona) {
   const datos = { clave: persona.clave, nombre: persona.nombre, pieza: '', cama: '', observacion: '', deTurno: true };
   if (idBase === 'guJefe') GUARDIA_JEFE = datos; else GUARDIA_CONDUCTOR = datos;
-  // Si esa persona ya estaba como integrante suelto, se saca de ahí (ahora tiene un rol fijo).
   GUARDIA_INTEGRANTES = GUARDIA_INTEGRANTES.filter(i => i.clave !== persona.clave);
   renderRolFijo(idBase);
   renderListaIntegrantesGuardia();
@@ -650,7 +630,7 @@ async function cargarGuardiaExistente() {
       else GUARDIA_INTEGRANTES.push(datos);
     });
     document.getElementById('guObservaciones').value = guardia.observaciones || '';
-    estado.textContent = `Editando guardia existente (v${guardia.version}) — creada por ${guardia.creado_por}. Guardar la actualizará.`;
+    estado.textContent = `Editando guardia existente (v${guardia.version}) — creada por ${guardia.creado_por}.`;
   } else {
     GUARDIA_ACTUAL = { id: null, version: null };
     document.getElementById('guObservaciones').value = '';
@@ -747,13 +727,34 @@ async function guardarGuardia() {
 }
 
 // ============================================================
-// MI PERFIL
+// MI PERFIL Y CONFIGURACIÓN DE CUENTA
 // ============================================================
+
+let MI_CLAVE_PERFIL = null;
 
 function abrirPerfil() {
   const cont = document.getElementById('contenidoPerfil');
   const hoy = new Date();
   cont.innerHTML = `
+    <!-- Sección Separada: Mi Cuenta, Cambio de Foto y Contraseña -->
+    <div class="item-material" style="flex-direction:column; align-items:stretch; margin-bottom: 20px; background: var(--color-tarjeta); border: 1px solid var(--color-borde); border-radius: 12px; padding: 16px;">
+      <h3 style="margin-top:0; margin-bottom:10px; color: var(--color-primario); font-size: 1rem;">⚙️ Mi Cuenta y Configuración de Perfil</h3>
+      <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 14px;">
+        <div id="pfMiAvatarContainer"></div>
+        <div>
+          <button type="button" class="btn-secundario" onclick="elegirFotoMiPerfil()">📷 Cambiar mi foto</button>
+          <p class="nota" style="margin: 4px 0 0;">Actualiza tu foto de perfil visible en los rankings.</p>
+        </div>
+      </div>
+      <form id="formContrasenaPerfil" onsubmit="return cambiarContrasenaPerfilUI(event)" style="border-top: 1px solid var(--color-borde); padding-top: 12px; margin-top: 4px;">
+        <h4 style="margin: 0 0 8px; font-size: 0.9rem;">Cambiar contraseña</h4>
+        <input id="pfActual" type="password" placeholder="Contraseña actual" required autocomplete="current-password">
+        <input id="pfNueva" type="password" placeholder="Contraseña nueva" required autocomplete="new-password">
+        <button type="submit" class="btn-secundario" style="width:auto; margin-bottom:0;">Actualizar contraseña</button>
+        <p id="pfPassMensaje" class="mensaje" style="margin-top:6px; margin-bottom:0;"></p>
+      </form>
+    </div>
+
     <div class="filtros">
       <select id="pfModo">
         <option value="actual">Mes actual</option>
@@ -779,6 +780,30 @@ function abrirPerfil() {
   cargarPerfil();
 }
 
+function elegirFotoMiPerfil() {
+  if (!MI_CLAVE_PERFIL) {
+    alert('Cargando perfil, intenta de nuevo en un momento.');
+    return;
+  }
+  elegirFotoPerfil(MI_CLAVE_PERFIL);
+}
+
+async function cambiarContrasenaPerfilUI(event) {
+  event.preventDefault();
+  const msg = document.getElementById('pfPassMensaje');
+  msg.textContent = 'Guardando...';
+  msg.className = 'mensaje';
+
+  const { error } = await cliente.rpc('cambiar_contrasena', {
+    p_token: SESION.token, p_actual: val('pfActual'), p_nueva: val('pfNueva')
+  });
+  if (error) { msg.textContent = error.message; msg.className = 'mensaje mensaje-error'; return false; }
+
+  msg.textContent = 'Contraseña actualizada.';
+  document.getElementById('formContrasenaPerfil').reset();
+  return false;
+}
+
 function rangoPerfil() {
   const modo = val('pfModo'); const hoy = new Date();
   if (modo === 'anual') {
@@ -791,7 +816,7 @@ function rangoPerfil() {
     const ultimoDia = new Date(anio, mes + 1, 0).getDate();
     return { desde: `${anio}-${String(mes + 1).padStart(2, '0')}-01`, hasta: `${anio}-${String(mes + 1).padStart(2, '0')}-${String(ultimoDia).padStart(2, '0')}` };
   }
-  return { desde: null, hasta: null }; // mes actual: el backend usa el mes calendario en curso
+  return { desde: null, hasta: null };
 }
 
 async function cargarPerfil() {
@@ -805,6 +830,14 @@ async function cargarPerfil() {
   ]);
 
   if (e1) { cont.innerHTML = `<p class="mensaje-error">${escapeHtml(e1.message)}</p>`; return; }
+
+  if (!e2 && podio && podio.yo) {
+    MI_CLAVE_PERFIL = podio.yo.clave;
+    const avatarCont = document.getElementById('pfMiAvatarContainer');
+    if (avatarCont) {
+      avatarCont.innerHTML = avatarPersona(podio.yo, 56);
+    }
+  }
 
   const podioHtml = !e2 ? renderRankingPerfil(podio) : `<p class="mensaje-error">${escapeHtml(e2.message)}</p>`;
 
@@ -826,21 +859,21 @@ async function cargarPerfil() {
         <strong>${perfil.emergenciasEnGuardia}</strong><span class="nota">Emergencias en guardia</span>
       </div>
       <div class="item-material" style="flex:1 1 140px;flex-direction:column;align-items:flex-start;">
-        <strong>${perfil.pctAsistencia}%</strong><span class="nota">Asistencia (vs. total de guardias del período)</span>
+        <strong>${perfil.pctAsistencia}%</strong><span class="nota">Asistencia (vs. total)</span>
       </div>
     </div>
     ${podioHtml}
     <h3 class="categoria-titulo">Emergencias fuera de guardia</h3>
     ${perfil.emergenciasFuera.length ? perfil.emergenciasFuera.map(e => `
       <div class="item-material"><div class="item-info">
-        <div class="item-nombre">${escapeHtml(e.codigo)} ${e.enGuardia ? '<span class="badge badge-success">En guardia</span>' : ''}</div>
-        <div class="item-detalle">${formatearFecha(e.fecha)} · ${escapeHtml(e.tipoActo)}</div>
+        <div class="item-nombre">${escapeHtml(e.codigo)}${e.enGuardia ? '<span class="badge badge-success">En guardia</span>' : ''}</div>
+        <div class="item-detalle">${formatearFecha(e.fecha)} ·${escapeHtml(e.tipoActo)}</div>
       </div></div>`).join('') : '<p class="nota">No hay emergencias registradas en este período.</p>'}
   `;
 }
 
 // ============================================================
-// CLASIFICACION DE ASISTENCIA (podio estilo automovilismo) + FOTOS
+// CLASIFICACION DE ASISTENCIA + FOTOS
 // ============================================================
 
 let PF_FOTO_CLAVE = null;
@@ -856,7 +889,6 @@ function colorPersona(clave) {
   return `hsl(${h}, 45%, 38%)`;
 }
 
-/** Foto si existe; si no, círculo con iniciales. */
 function avatarPersona(p, tam) {
   const t = tam || 44;
   if (p.foto_url) {
@@ -894,7 +926,6 @@ function renderRankingPerfil(r) {
   const top = r.top || [];
   const yo = r.yo;
 
-  // ---- Podio (los 3 primeros: P2 | P1 | P3) ----
   let podioHtml = '';
   if (top.length) {
     const slot = (p, altura) => {
@@ -911,14 +942,12 @@ function renderRankingPerfil(r) {
     </div></div>`;
   }
 
-  // ---- P4 y P5 ----
   const resto = top.slice(3).map(p => filaClasificacion(p, { yo: yo && p.clave === yo.clave })).join('');
 
-  // ---- Tu posición: uno arriba, tú, uno abajo ----
   let torre = '';
   if (yo) {
     const arriba = r.arriba
-      ? filaClasificacion(r.arriba, { detalle: `A ${r.arriba.total - yo.total} emergencia(s) de alcanzarlo` })
+      ? filaClasificacion(r.arriba, { detalle: `A ${r.arriba.total - yo.total} emergencia(s)` })
       : '<div class="gp-hueco">🏁 Nadie tiene más asistencias que tú en este período.</div>';
     const abajo = r.abajo
       ? filaClasificacion(r.abajo, { detalle: `Te sigue a ${yo.total - r.abajo.total} emergencia(s)` })
@@ -932,11 +961,10 @@ function renderRankingPerfil(r) {
       <button type="button" class="btn-secundario" style="margin-top:10px;" onclick="elegirFotoPerfil('${escapeHtml(yo.clave)}')">📷 Cambiar mi foto</button>`;
   }
 
-  const sinDatos = !top.length
-    ? '<p class="nota">Todavía no hay asistencias registradas en este período.</p>' : '';
+  const sinDatos = !top.length ? '<p class="nota">Todavía no hay asistencias registradas en este período.</p>' : '';
 
   return `<h3 class="categoria-titulo gp-titulo">🏆 Clasificación de asistencia</h3>
-    <p class="nota" style="margin-top:0;">Emergencias asistidas en el período (sin partes de prueba).</p>
+    <p class="nota" style="margin-top:0;">Emergencias asistidas en el período.</p>
     ${sinDatos}${podioHtml}
     <div class="gp-torre">${resto}</div>
     ${torre}`;
@@ -947,7 +975,6 @@ function elegirFotoPerfil(clave) {
   document.getElementById('pfFotoInput').click();
 }
 
-/** Recorta al centro en cuadrado y reduce a `lado` px (JPEG). */
 function recortarCuadrado(file, lado) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
@@ -1055,14 +1082,7 @@ async function cargarAdminEmergencias() {
       <div class="audit-details-preview oculto">
         <p><strong>Reportado por:</strong> ${escapeHtml(p.reportado_por_nombre)} (${escapeHtml(p.reportado_por)})</p>
         <p><strong>Mando CBPM:</strong> ${escapeHtml(p.mando_cbpm)} · <strong>Mando Compañía:</strong> ${escapeHtml(p.mando_compania)}</p>
-        <p><strong>Material mayor:</strong> ${(p.material_mayor || []).join(', ')} · <strong>Bomba interna:</strong> ${(p.bomba_interna || []).join(', ') || '—'}</p>
-        <p><strong>Unidades:</strong></p>
-        <div class="audit-diff-box">${(p.unidades || []).map(u =>
-          `${u.unidad}: conductor ${u.conductor || '—'}, km ${u.km_salida || '—'} → ${u.km_regreso || '—'}, material: ${u.material_menor || '—'}`
-        ).join('\n') || 'Sin unidades registradas.'}</div>
-        <p><strong>Asistencia:</strong> ${(p.asistentes || []).map(a => a.nombre).join(', ') || '—'}</p>
-        ${p.pdf_url ? `<p><a href="${p.pdf_url}" target="_blank" rel="noopener">Abrir PDF</a></p>` : ''}
-        ${p.pdf_estado === 'error' ? `<p class="mensaje-error">Error PDF: ${escapeHtml(p.pdf_error || '')}</p>` : ''}
+        <p><strong>Material mayor:</strong> ${(p.material_mayor || []).join(', ')}</p>
         <button class="btn-secundario" onclick="event.stopPropagation(); marcarPruebaAdmin(${p.id}, ${!p.es_prueba})">
           ${p.es_prueba ? 'Quitar marca de prueba' : 'Marcar como prueba'}
         </button>
@@ -1108,13 +1128,6 @@ async function cargarAdminGuardias() {
       <div class="audit-meta"><span>${formatearFecha(g.fecha)}</span><span>${escapeHtml(g.tipo)}</span></div>
       <div class="audit-details-preview oculto">
         <p><strong>Creada por:</strong> ${escapeHtml(g.creado_por)}</p>
-        <p><strong>Última modificación:</strong> ${escapeHtml(g.modificado_por)}</p>
-        <p><strong>Integrantes:</strong></p>
-        <div class="audit-diff-box">${(g.integrantes || []).map(i =>
-          `${i.nombre}${i.es_jefe ? ' (Jefe)' : ''}${i.es_conductor ? ' (Conductor)' : ''} — Pieza ${i.pieza || '—'}, Cama ${i.cama || '—'}${i.de_turno ? '' : ' [NO estaba de turno]'}`
-        ).join('\n') || 'Sin integrantes.'}</div>
-        <p><strong>Emergencias vinculadas:</strong> ${(g.emergencias || []).map(e => e.codigo).join(', ') || '—'}</p>
-        ${g.observaciones ? `<p><strong>Observaciones:</strong> ${escapeHtml(g.observaciones)}</p>` : ''}
       </div>
     </div>
   `).join('');
@@ -1129,7 +1142,7 @@ function renderAdminAuditoria() {
         <option value="parte">Emergencias</option>
         <option value="guardia">Guardias</option>
       </select>
-      <input id="adAuTexto" placeholder="Buscar por nombre, clave o referencia...">
+      <input id="adAuTexto" placeholder="Buscar por nombre, clave...">
       <button class="btn-secundario" onclick="cargarAdminAuditoria()">Filtrar</button>
     </div>
     <div id="adAuLista"></div>
@@ -1151,15 +1164,205 @@ async function cargarAdminAuditoria() {
       <div class="audit-header">
         <strong>${escapeHtml(a.nombre)}</strong>
         <span class="badge badge-warning">${escapeHtml(a.accion)}</span>
-        <span class="nota">${escapeHtml(a.referencia || '')}</span>
       </div>
       <div class="audit-meta"><span>${new Date(a.fecha).toLocaleString('es-CL')}</span><span>${escapeHtml(a.entidad)}</span></div>
       <div class="audit-details-preview oculto">
-        <p><strong>Antes:</strong></p><div class="audit-diff-box">${escapeHtml(JSON.stringify(a.antes, null, 2))}</div>
-        <p><strong>Después:</strong></p><div class="audit-diff-box">${escapeHtml(JSON.stringify(a.despues, null, 2))}</div>
+        <p><strong>Cambios registrados</strong></p>
       </div>
     </div>
   `).join('');
 }
 
-// formatearFecha(fecha) ya existe en app.js (Niveles de Carga) — se reutiliza aquí.
+// ============================================================
+// GESTIÓN DE PERSONAL EN EL PANEL ADMINISTRADOR
+// ============================================================
+
+function mostrarAdminTab(nombre) {
+  ADMIN_TAB_ACTUAL = nombre;
+  document.querySelectorAll('[data-admintab]').forEach(b => b.classList.toggle('activo', b.dataset.admintab === nombre));
+  if (nombre === 'emergencias') renderAdminEmergencias();
+  if (nombre === 'guardias') renderAdminGuardias();
+  if (nombre === 'auditoria') renderAdminAuditoria();
+  if (nombre === 'personal') renderAdminPersonal();
+}
+
+function renderAdminPersonal() {
+  const cont = document.getElementById('contenidoAdmin');
+  cont.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px;">
+      <div>
+        <h3 style="margin:0;">Gestión de Personal y Usuarios</h3>
+        <p class="nota" style="margin:0;">Haz clic en cualquier tarjeta para editar su información o usa el botón para agregar.</p>
+      </div>
+      <button class="btn-secundario" onclick="abrirModalAdminPersonal('nuevo')" style="margin-bottom:0;">+ Agregar Persona</button>
+    </div>
+    
+    <div class="auditoria-filtros" style="margin-bottom: 15px;">
+      <input id="adPerTexto" placeholder="Buscar por nombre, usuario o permisos..." oninput="filtrarListaPersonalAdmin()">
+    </div>
+    <div id="adPerLista"></div>
+  `;
+  cargarAdminPersonalLista();
+}
+
+let ADMIN_PERSONAL_CACHE = [];
+
+async function cargarAdminPersonalLista() {
+  const lista = document.getElementById('adPerLista');
+  if (!lista) return;
+  lista.innerHTML = '<p class="nota">Cargando personal...</p>';
+
+  const { data, error } = await cliente.rpc('listar_usuarios', { p_token: SESION.token });
+  if (error) {
+    lista.innerHTML = `<p class="mensaje-error">${escapeHtml(error.message)}</p>`;
+    return;
+  }
+  ADMIN_PERSONAL_CACHE = data || [];
+  renderizarTarjetasPersonalAdmin(ADMIN_PERSONAL_CACHE);
+}
+
+function filtrarListaPersonalAdmin() {
+  const q = (val('adPerTexto') || '').trim().toLowerCase();
+  const filtrados = ADMIN_PERSONAL_CACHE.filter(p =>
+    (p.nombre_persona || p.nombre || '').toLowerCase().includes(q) ||
+    (p.usuario || '').toLowerCase().includes(q) ||
+    (p.permisos || '').toLowerCase().includes(q)
+  );
+  renderizarTarjetasPersonalAdmin(filtrados);
+}
+
+function renderizarTarjetasPersonalAdmin(items) {
+  const lista = document.getElementById('adPerLista');
+  if (!items.length) {
+    lista.innerHTML = '<p class="nota">No se encontró personal registrado.</p>';
+    return;
+  }
+
+  lista.innerHTML = items.map(p => `
+    <div class="audit-card" onclick='abrirModalAdminPersonal("editar", ${JSON.stringify(p)})'>
+      <div class="audit-header">
+        <strong>${escapeHtml(p.nombre_persona || p.nombre)}</strong>
+        <span class="badge badge-success">${escapeHtml(p.permisos)}</span>
+      </div>
+      <div class="audit-meta">
+        <span>Usuario/Clave: <strong>${escapeHtml(p.usuario)}</strong></span>
+        <span>Categoría: <strong>${escapeHtml(p.categoria || 'activos')}</strong></span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function abrirModalAdminPersonal(modo, persona) {
+  const modal = document.getElementById('modalAdminPersonal');
+  const titulo = document.getElementById('adminPersonalTitulo');
+  const btnEliminar = document.getElementById('btnEliminarPersona');
+  document.getElementById('adminPersonalMensaje').textContent = '';
+
+  document.getElementById('formAdminPersonal').reset();
+
+  if (modo === 'nuevo') {
+    titulo.textContent = 'Registrar Nuevo Personal';
+    document.getElementById('apUsuarioOriginal').value = '';
+    document.getElementById('apUsuario').disabled = false;
+    document.getElementById('apEsEncargado').checked = false;
+    document.getElementById('apEsConductor').checked = false;
+    document.getElementById('apLista').checked = true;
+    document.getElementById('apCategoria').value = 'activos';
+    btnEliminar.classList.add('oculto');
+  } else {
+    titulo.textContent = 'Editar Información de Personal';
+    document.getElementById('apUsuarioOriginal').value = persona.usuario;
+    document.getElementById('apUsuario').value = persona.usuario;
+    document.getElementById('apUsuario').disabled = true;
+    document.getElementById('apNombre').value = persona.nombre_persona || persona.nombre || '';
+    document.getElementById('apPermisos').value = persona.permisos;
+    document.getElementById('apContrasena').value = '';
+    document.getElementById('apEsEncargado').checked = persona.es_encargado === true;
+    document.getElementById('apEsConductor').checked = persona.es_conductor === true;
+    document.getElementById('apLista').checked = persona.lista !== false;
+    document.getElementById('apCategoria').value = persona.categoria || 'activos';
+    btnEliminar.classList.remove('oculto');
+  }
+  modal.classList.remove('oculto');
+}
+
+function cerrarModalAdminPersonal() {
+  document.getElementById('modalAdminPersonal').classList.add('oculto');
+}
+
+async function guardarAdminPersonal(event) {
+  event.preventDefault();
+  const original = val('apUsuarioOriginal');
+  const usuario = val('apUsuario').trim();
+  const nombre = val('apNombre').trim();
+  const contrasena = val('apContrasena');
+  const permisos = val('apPermisos');
+  const msg = document.getElementById('adminPersonalMensaje');
+
+  msg.textContent = 'Guardando...';
+  msg.className = 'mensaje';
+
+  const payload = {
+    p_token: SESION.token,
+    p_usuario: original ? original : usuario,
+    p_nombre: nombre,
+    p_contrasena: contrasena ? contrasena : (original ? null : ''),
+    p_permisos: permisos,
+    p_es_encargado: document.getElementById('apEsEncargado').checked,
+    p_es_conductor: document.getElementById('apEsConductor').checked,
+    p_lista: document.getElementById('apLista').checked,
+    p_categoria: val('apCategoria')
+  };
+
+  if (!original && !contrasena) {
+    msg.textContent = 'La contraseña es obligatoria para nuevos usuarios.';
+    msg.className = 'mensaje mensaje-error';
+    return false;
+  }
+
+  let error = null;
+  if (!original) {
+    const res = await cliente.rpc('agregar_usuario', payload);
+    error = res.error;
+  } else {
+    const res = await cliente.rpc('editar_usuario', payload);
+    error = res.error;
+  }
+
+  if (error) {
+    msg.textContent = error.message;
+    msg.className = 'mensaje mensaje-error';
+    return false;
+  }
+
+  msg.textContent = '¡Guardado con éxito!';
+  msg.className = 'mensaje';
+  setTimeout(() => {
+    cerrarModalAdminPersonal();
+    cargarAdminPersonalLista();
+  }, 800);
+  return false;
+}
+
+async function eliminarPersonaAdmin() {
+  const usuario = val('apUsuarioOriginal');
+  if (!usuario) return;
+  if (!confirm(`¿Estás seguro de eliminar al usuario "${usuario}" del sistema?`)) return;
+
+  const msg = document.getElementById('adminPersonalMensaje');
+  msg.textContent = 'Eliminando...';
+
+  const { error } = await cliente.rpc('eliminar_usuario', {
+    p_token: SESION.token,
+    p_usuario: usuario
+  });
+
+  if (error) {
+    msg.textContent = error.message;
+    msg.className = 'mensaje mensaje-error';
+    return;
+  }
+
+  cerrarModalAdminPersonal();
+  cargarAdminPersonalLista();
+}

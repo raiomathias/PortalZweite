@@ -98,6 +98,7 @@
       <button class="tab activo" data-admintab="emergencias" onclick="mostrarAdminTab('emergencias')">Emergencias</button>
       <button class="tab" data-admintab="guardias" onclick="mostrarAdminTab('guardias')">Guardias</button>
       <button class="tab" data-admintab="auditoria" onclick="mostrarAdminTab('auditoria')">Auditoría</button>
+      <button class="tab" data-admintab="personal" onclick="mostrarAdminTab('personal')">Personal</button>
     </nav>
     <div id="contenidoAdmin" class="auditoria-container"></div>
   </div>
@@ -455,6 +456,49 @@
       <div class="modal-botones">
         <button class="btn-texto" onclick="cerrarEscanerQR()">Cerrar</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ---------- MODAL EDITAR / GESTIONAR PERSONAL (ADMIN) ---------- -->
+  <div id="modalAdminPersonal" class="modal oculto">
+    <div class="modal-contenido">
+      <h3 id="adminPersonalTitulo">Editar Personal</h3>
+      <form id="formAdminPersonal" onsubmit="return guardarAdminPersonal(event)">
+        <label>Categoría 
+          <select id="apCategoria">
+            <option value="activos">Activos</option>
+            <option value="honorarios">Honorarios</option>
+            <option value="confederados">Confederados</option>
+            <option value="aspirantes">Aspirantes</option>
+          </select>
+        </label>
+
+        <div class="filtros" style="margin-bottom: 12px;">
+          <label class="check-fila"><input type="checkbox" id="apEsEncargado"> Es Encargado</label>
+          <label class="check-fila"><input type="checkbox" id="apEsConductor"> Es Conductor</label>
+          <label class="check-fila"><input type="checkbox" id="apLista" checked> En Lista Activa</label>
+        </div>
+        
+        <input type="hidden" id="apUsuarioOriginal">
+        <label>Usuario / Clave <input id="apUsuario" required></label>
+        <label>Nombre completo <input id="apNombre" required></label>
+        <label>Contraseña (dejar en blanco para no cambiar) <input id="apContrasena" type="password"></label>
+        <label>Permisos / Rol
+          <select id="apPermisos">
+            <option>Aspirante</option>
+            <option>Voluntario</option>
+            <option>Encargado de material menor</option>
+            <option>Oficial</option>
+            <option>Administrador de sistema</option>
+          </select>
+        </label>
+        <div class="modal-botones">
+          <button type="button" class="btn-texto" onclick="eliminarPersonaAdmin()" id="btnEliminarPersona" style="color:var(--color-error);">Eliminar</button>
+          <button type="button" class="btn-texto" onclick="cerrarModalAdminPersonal()">Cancelar</button>
+          <button type="submit" class="btn-principal">Guardar Cambios</button>
+        </div>
+      </form>
+      <p id="adminPersonalMensaje" class="mensaje"></p>
     </div>
   </div>
 
