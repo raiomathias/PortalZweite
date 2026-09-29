@@ -43,8 +43,11 @@ const BUSCADOR_PERSONA_CTX = {};
  *  'unico' (reemplaza una selección única y oculta el buscador). */
 function tplBuscadorPersona(id, placeholder) {
   return `<div class="buscador-persona">
-    <input type="text" id="busq_${id}" placeholder="${placeholder || 'Buscar por clave o nombre...'}"
-      autocomplete="off" oninput="filtrarBuscadorPersona('${id}')" onfocus="filtrarBuscadorPersona('${id}')">
+    <div class="buscador-fila">
+      <input type="text" id="busq_${id}" placeholder="${placeholder || 'Buscar por clave o nombre...'}"
+        autocomplete="off" oninput="filtrarBuscadorPersona('${id}')" onfocus="filtrarBuscadorPersona('${id}')">
+      <button type="button" class="btn-lista-personas" onclick="alternarListaPersonas('${id}')">▾ Lista</button>
+    </div>
     <div id="resultados_${id}" class="resultados-busqueda oculto"></div>
   </div>`;
 }
@@ -59,19 +62,30 @@ function filtrarBuscadorPersona(id) {
   const input = document.getElementById('busq_' + id);
   const cont = document.getElementById('resultados_' + id);
   const q = (input.value || '').trim().toLowerCase();
-  if (!q) { cont.classList.add('oculto'); cont.innerHTML = ''; return; }
 
-  const coincidencias = (ctx.lista || []).filter(p =>
-    String(p.clave).toLowerCase().includes(q) || String(p.nombre).toLowerCase().includes(q)
-  ).slice(0, 8);
+  // Sin texto: se muestra la lista completa (scrolleable). Con texto: se filtra por clave o nombre.
+  const lista = (ctx.lista || []).slice().sort((a, b) =>
+    String(a.nombre).localeCompare(String(b.nombre), 'es'));
+  const coincidencias = q
+    ? lista.filter(p => String(p.clave).toLowerCase().includes(q) || String(p.nombre).toLowerCase().includes(q))
+    : lista;
 
+  const cabecera = `<div class="resultados-cabecera">${coincidencias.length} persona(s)${q ? ' encontradas' : ' · desliza para ver más'}</div>`;
   cont.innerHTML = coincidencias.length
-    ? coincidencias.map(p =>
+    ? cabecera + coincidencias.map(p =>
         `<div class="resultado-item" onclick="seleccionarBuscadorPersona('${id}','${escapeHtml(p.clave)}')">
           ${escapeHtml(p.nombre)} <span class="nota">(${escapeHtml(p.clave)})</span>
         </div>`).join('')
     : '<div class="resultado-item nota">Sin coincidencias.</div>';
   cont.classList.remove('oculto');
+}
+
+/** Botón "▾ Lista": abre/cierra el desplegable completo sin necesidad de escribir. */
+function alternarListaPersonas(id) {
+  const cont = document.getElementById('resultados_' + id);
+  if (!cont.classList.contains('oculto')) { cont.classList.add('oculto'); return; }
+  document.getElementById('busq_' + id).value = '';
+  filtrarBuscadorPersona(id);
 }
 
 function seleccionarBuscadorPersona(id, clave) {

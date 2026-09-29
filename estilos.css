@@ -38,7 +38,7 @@ body {
 .tarjeta-login h1 { margin: 0 0 4px; font-size: 1.4rem; }
 .subtitulo { color: #777; margin-top: 0; margin-bottom: 20px; font-size: 0.9rem; }
 
-input, select {
+input, select, textarea {
   width: 100%;
   padding: 12px 14px;
   margin-bottom: 12px;
@@ -195,7 +195,7 @@ form label { display: block; margin-bottom: 10px; font-size: 0.85rem; color: #55
     --color-fondo: #1c1517; --color-tarjeta: #2a2022;
     --color-texto: #f2e9e7; --color-borde: #3a2f31;
   }
-  input, select { background: #241b1d; color: var(--color-texto); }
+  input, select, textarea { background: #241b1d; color: var(--color-texto); }
   .tabs { background: #241b1d; }
 }
 
@@ -398,3 +398,37 @@ form label { display: block; margin-bottom: 10px; font-size: 0.85rem; color: #55
 }
 .menu-card:active { transform: scale(0.98); background: rgba(124,45,61,0.06); }
 .menu-card-icono { font-size: 1.6rem; }
+
+/* ---------- TEXTAREAS (observaciones) ---------- */
+textarea {
+  font-family: inherit;
+  line-height: 1.4;
+  min-height: 84px;
+  resize: vertical;
+  margin-top: 6px;
+  margin-bottom: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+textarea::placeholder { color: #9a908d; }
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-primario);
+  box-shadow: 0 0 0 3px rgba(124, 45, 61, 0.15);
+}
+
+/* ---------- BUSCADOR + LISTA DESPLEGABLE DE PERSONAS ---------- */
+.buscador-fila { display: flex; gap: 8px; align-items: flex-start; }
+.buscador-fila input { margin-bottom: 0; flex: 1; }
+.btn-lista-personas {
+  flex: none; height: 46px; padding: 0 14px;
+  border: 1px solid var(--color-borde); border-radius: 10px;
+  background: var(--color-tarjeta); color: var(--color-primario);
+  font-weight: 700; font-size: 0.85rem; cursor: pointer;
+}
+.btn-lista-personas:active { background: rgba(124,45,61,0.08); }
+.resultados-busqueda { max-height: 260px; -webkit-overflow-scrolling: touch; }
+.resultados-cabecera {
+  position: sticky; top: 0; padding: 6px 12px; font-size: 0.75rem;
+  color: #777; background: var(--color-fondo);
+  border-bottom: 1px solid var(--color-borde);
+}
