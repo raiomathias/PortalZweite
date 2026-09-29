@@ -15,8 +15,194 @@ async function iniciarPortal() {
 
 async function cargarDirectorioPD() {
   const { data, error } = await cliente.rpc('pd_directorio', { p_token: SESION.token });
-  if (!error) DB.directorio = data;
-  else DB.directorio = { honorarios: [], activos: [], confederados: [], aspirantes: [], conductores: [], jefes: [], todos: [] };
+  if (!error) {
+    DB.directorio = data;
+    // Aviso temprano si el backend devolvió algo pero alguna categoría vino vacía,
+    // para no volver a depurar "a ciegas" por qué no aparece nadie en las listas.
+    ['honorarios', 'activos', 'confederados', 'aspirantes', 'conductores', 'jefes', 'todos'].forEach(cat => {
+      if (!Array.isArray(DB.directorio[cat]) || !DB.directorio[cat].length) {
+        console.warn('pd_directorio: la categoría "' + cat + '" llegó vacía.', DB.directorio);
+      }
+    });
+    return;
+  }
+  console.error('pd_directorio error:', error);
+  DB.directorio = { honorarios: [], activos: [], confederados: [], aspirantes: [], conductores: [], jefes: [], todos: [] };
+}
+
+// ============================================================
+// BUSCADOR GENERICO DE PERSONAS (por clave radial o por nombre)
+// ============================================================
+// Reemplaza los <select> gigantes por un campo de texto con resultados
+// en vivo. Se usa tanto para agregar asistencia (multiple) como para
+// elegir Mando de Compañía, Jefe de Guardia y Conductor (unico).
+
+const BUSCADOR_PERSONA_CTX = {};
+
+/** tipo: 'multi' (agrega a un array y sigue mostrando el buscador) o
+ *  'unico' (reemplaza una selección única y oculta el buscador). */
+function tplBuscadorPersona(id, placeholder) {
+  return `<div class="buscador-persona">
+    <input type="text" id="busq_${id}" placeholder="${placeholder || 'Buscar por clave o nombre...'}"
+      autocomplete="off" oninput="filtrarBuscadorPersona('${id}')" onfocus="filtrarBuscadorPersona('${id}')">
+    <div id="resultados_${id}" class="resultados-busqueda oculto"></div>
+  </div>`;
+}
+
+function registrarBuscadorPersona(id, lista, onSeleccionar) {
+  BUSCADOR_PERSONA_CTX[id] = { lista: lista || [], onSeleccionar };
+}
+
+function filtrarBuscadorPersona(id) {
+  const ctx = BUSCADOR_PERSONA_CTX[id];
+  if (!ctx) return;
+  const input = document.getElementById('busq_' + id);
+  const cont = document.getElementById('resultados_' + id);
+  const q = (input.value || '').trim().toLowerCase();
+  if (!q) { cont.classList.add('oculto'); cont.innerHTML = ''; return; }
+
+  const coincidencias = (ctx.lista || []).filter(p =>
+    String(p.clave).toLowerCase().includes(q) || String(p.nombre).toLowerCase().includes(q)
+  ).slice(0, 8);
+
+  cont.innerHTML = coincidencias.length
+    ? coincidencias.map(p =>
+        `<div class="resultado-item" onclick="seleccionarBuscadorPersona('${id}','${escapeHtml(p.clave)}')">
+          ${escapeHtml(p.nombre)} <span class="nota">(${escapeHtml(p.clave)})</span>
+        </div>`).join('')
+    : '<div class="resultado-item nota">Sin coincidencias.</div>';
+  cont.classList.remove('oculto');
+}
+
+function seleccionarBuscadorPersona(id, clave) {
+  const ctx = BUSCADOR_PERSONA_CTX[id];
+  if (!ctx) return;
+  const persona = (ctx.lista || []).find(p => String(p.clave) === String(clave));
+  if (!persona) return;
+  ctx.onSeleccionar(persona);
+  const input = document.getElementById('busq_' + id);
+  const cont = document.getElementById('resultados_' + id);
+  if (input) input.value = '';
+  if (cont) { cont.classList.add('oculto'); cont.innerHTML = ''; }
+}
+
+// Cierra cualquier dropdown de resultados si se hace clic fuera de él.
+document.addEventListener('click', function (e) {
+  document.querySelectorAll('.resultados-busqueda:not(.oculto)').forEach(cont => {
+    const contenedorPadre = cont.closest('.buscador-persona');
+    if (contenedorPadre && !contenedorPadre.contains(e.target)) {
+      cont.classList.add('oculto');
+    }
+  });
+});
+
+// ============================================================
+// TAGS DE TEXTO SIMPLE (ej: Máquinas concurrentes)
+// ============================================================
+
+const TAGS_TEXTO = {};
+
+function tplTagsTexto(id, placeholder) {
+  return `<div class="tags-fila-input">
+    <input type="text" id="tagIn_${id}" placeholder="${placeholder || 'Escribe y presiona coma o Enter'}"
+      oninput="onInputTagsTexto('${id}')" onkeydown="onKeydownTagsTexto('${id}', event)">
+  </div>
+  <div id="tagLista_${id}" class="tags-contenedor"></div>`;
+}
+
+function iniciarTagsTexto(id, valoresIniciales) {
+  TAGS_TEXTO[id] = (valoresIniciales || []).slice();
+  renderTagsTexto(id);
+}
+
+function onInputTagsTexto(id) {
+  const input = document.getElementById('tagIn_' + id);
+  if (!input.value.includes(',')) return;
+  const partes = input.value.split(',');
+  const resto = partes.pop();
+  partes.map(p => p.trim()).filter(Boolean).forEach(t => TAGS_TEXTO[id].push(t));
+  input.value = resto;
+  renderTagsTexto(id);
+}
+
+function onKeydownTagsTexto(id, e) {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  const input = document.getElementById('tagIn_' + id);
+  const t = input.value.trim();
+  if (t) { TAGS_TEXTO[id].push(t); input.value = ''; renderTagsTexto(id); }
+}
+
+function quitarTagTexto(id, indice) {
+  TAGS_TEXTO[id].splice(indice, 1);
+  renderTagsTexto(id);
+}
+
+function renderTagsTexto(id) {
+  const cont = document.getElementById('tagLista_' + id);
+  if (!cont) return;
+  cont.innerHTML = (TAGS_TEXTO[id] || []).map((t, i) =>
+    `<span class="tag-chip">${escapeHtml(t)} <span class="quitar" onclick="quitarTagTexto('${id}',${i})">✕</span></span>`
+  ).join('');
+}
+
+// ============================================================
+// TAGS DE MATERIAL + CANTIDAD (Material menor utilizado)
+// ============================================================
+
+const TAGS_MATERIAL = {};
+
+function tplTagsMaterial(id) {
+  return `<div class="tags-fila-input">
+    <input type="text" id="tagMatNombre_${id}" placeholder="Material" style="flex:2;">
+    <input type="number" id="tagMatCantidad_${id}" placeholder="Cant." min="1" value="1" style="flex:1;max-width:80px;">
+    <button type="button" class="btn-secundario" style="margin-bottom:0;" onclick="agregarTagMaterial('${id}')">+ Agregar</button>
+  </div>
+  <div id="tagMatLista_${id}" class="tags-contenedor"></div>`;
+}
+
+function iniciarTagsMaterial(id) {
+  TAGS_MATERIAL[id] = [];
+  renderTagsMaterial(id);
+}
+
+function agregarTagMaterial(id) {
+  const nombre = val('tagMatNombre_' + id).trim();
+  const cantidad = Math.max(1, Number(val('tagMatCantidad_' + id)) || 1);
+  if (!nombre) return;
+  TAGS_MATERIAL[id].push({ nombre, cantidad });
+  document.getElementById('tagMatNombre_' + id).value = '';
+  document.getElementById('tagMatCantidad_' + id).value = '1';
+  renderTagsMaterial(id);
+}
+
+function quitarTagMaterial(id, indice) {
+  TAGS_MATERIAL[id].splice(indice, 1);
+  renderTagsMaterial(id);
+}
+
+function renderTagsMaterial(id) {
+  const cont = document.getElementById('tagMatLista_' + id);
+  if (!cont) return;
+  cont.innerHTML = (TAGS_MATERIAL[id] || []).map((t, i) =>
+    `<span class="tag-chip">${escapeHtml(t.nombre)} ×${t.cantidad} <span class="quitar" onclick="quitarTagMaterial('${id}',${i})">✕</span></span>`
+  ).join('');
+}
+
+function textoTagsMaterial(id) {
+  return (TAGS_MATERIAL[id] || []).map(t => `${t.nombre} x${t.cantidad}`).join(', ');
+}
+
+// ============================================================
+// HORA EN TEXTO FORZADO A FORMATO 24H (evita el selector nativo
+// de 12h/AM-PM que algunos celulares muestran para type="time")
+// ============================================================
+
+function formatearHora24(campo) {
+  const digitos = String(campo.value || '').replace(/\D/g, '').slice(0, 4);
+  campo.value = digitos.length > 2 ? digitos.slice(0, 2) + ':' + digitos.slice(2) : digitos;
+  const valido = !campo.value || /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(campo.value);
+  campo.setCustomValidity(valido ? '' : 'Usa horario 24h: HH:MM');
 }
 
 function mostrarPantalla(nombre) {
@@ -43,12 +229,24 @@ function opcionesPersonas(lista) {
 // ============================================================
 
 let EMERG_ASISTENTES = { honorarios: [], activos: [], confederados: [], aspirantes: [] };
+let EMERG_MANDO_COMPANIA = null; // { clave, nombre }
+let EMERG_CONDUCTORES = {}; // { 'B-2': {clave,nombre} | null, ... }
+
+function renderConductorUnidadElegido(u) {
+  const cont = document.getElementById('emCond_' + u + '_elegido');
+  if (!cont) return;
+  const persona = EMERG_CONDUCTORES[u];
+  cont.innerHTML = persona
+    ? `<div class="persona-elegida"><span>${escapeHtml(persona.nombre)} <span class="nota">(${escapeHtml(persona.clave)})</span></span>
+        <span class="quitar" onclick="EMERG_CONDUCTORES['${u}']=null; renderConductorUnidadElegido('${u}');">✕</span></div>`
+    : '<p class="nota">Nadie seleccionado aún.</p>';
+}
 
 function tplAsistenciaBloque(cat, titulo) {
   return `<div class="mover-maquina">
-    <label>${titulo} <select id="emSelect_${cat}"></select></label>
-    <button type="button" class="btn-secundario" onclick="agregarAsistente('${cat}')">+ Agregar</button>
-    <div id="emChips_${cat}" style="margin-top:8px;"></div>
+    <label style="margin-bottom:6px;">${titulo}</label>
+    ${tplBuscadorPersona('em_' + cat, 'Buscar por clave o nombre...')}
+    <div id="emChips_${cat}" style="margin-top:4px;"></div>
   </div>`;
 }
 
@@ -57,13 +255,21 @@ function abrirFormularioEmergencia() {
   cont.innerHTML = `
     <label>Fecha de inicio <input type="date" id="emFecha"></label>
     <div class="filtros">
-      <label style="flex:1 1 100px;">Hora inicio <input type="time" id="emHoraInicio"></label>
-      <label style="flex:1 1 100px;">Hora término <input type="time" id="emHoraTermino"></label>
-      <label style="flex:1 1 100px;">Hora cierre parte <input type="time" id="emHoraCierre"></label>
+      <label style="flex:1 1 100px;">Hora inicio
+        <input type="text" id="emHoraInicio" inputmode="numeric" maxlength="5" placeholder="HH:MM" oninput="formatearHora24(this)"></label>
+      <label style="flex:1 1 100px;">Hora término
+        <input type="text" id="emHoraTermino" inputmode="numeric" maxlength="5" placeholder="HH:MM" oninput="formatearHora24(this)"></label>
+      <label style="flex:1 1 100px;">Hora cierre parte
+        <input type="text" id="emHoraCierre" inputmode="numeric" maxlength="5" placeholder="HH:MM" oninput="formatearHora24(this)"></label>
     </div>
     <label>Mando CBPM <input id="emMandoCBPM" placeholder="Clave radial"></label>
-    <label>Mando Compañía (OBAC) <select id="emMandoCompania"></select></label>
-    <label>Máquinas concurrentes <input id="emMaquinas" placeholder="Ej: B1, B2, HX2, R4"></label>
+    <label style="margin-bottom:6px;">Mando Compañía (OBAC)</label>
+    ${tplBuscadorPersona('emMandoCompania', 'Buscar por clave o nombre...')}
+    <div id="emMandoCompaniaElegido"></div>
+
+    <label>Máquinas concurrentes</label>
+    ${tplTagsTexto('emMaquinas', 'Ej: B1, B2, HX2, R4')}
+
     <label>Tipo de acto <input id="emTipoActo" placeholder="Ej: 10-5-1"></label>
     <label>Dirección <input id="emDireccion"></label>
     <label>Ciudad <input id="emCiudad" value="Puerto Montt"></label>
@@ -73,15 +279,19 @@ function abrirFormularioEmergencia() {
     <label>Observaciones / antecedentes <textarea id="emObsAntecedentes" rows="2"></textarea></label>
 
     <h3 class="categoria-titulo">Material mayor concurrente</h3>
+    <p class="nota">Opcional — deja todo sin marcar si el parte no involucró máquinas (ej. asambleas).</p>
     <div class="filtros">
       <label class="check-fila"><input type="checkbox" class="emMatMayor" value="B-2"> B-2</label>
       <label class="check-fila"><input type="checkbox" class="emMatMayor" value="HX-2"> HX-2</label>
       <label class="check-fila"><input type="checkbox" class="emMatMayor" value="H-2"> H-2</label>
     </div>
+
+    <h3 class="categoria-titulo">Indique si alguna máquina utilizó la bomba interna</h3>
     <div class="filtros">
-      <label class="check-fila"><input type="checkbox" id="emBombaB2"> ¿Bomba interna B-2?</label>
-      <label class="check-fila"><input type="checkbox" id="emBombaHX2"> ¿Bomba interna HX-2?</label>
+      <label class="check-fila"><input type="checkbox" id="emBombaB2"> B-2</label>
+      <label class="check-fila"><input type="checkbox" id="emBombaHX2"> HX-2</label>
     </div>
+
     <div id="emUnidadesContenedor"></div>
     <label>Observaciones del material mayor <textarea id="emObsMatMayor" rows="2"></textarea></label>
 
@@ -96,24 +306,36 @@ function abrirFormularioEmergencia() {
   `;
 
   EMERG_ASISTENTES = { honorarios: [], activos: [], confederados: [], aspirantes: [] };
+  EMERG_MANDO_COMPANIA = null;
+  EMERG_CONDUCTORES = {};
+  document.getElementById('emMandoCompaniaElegido').innerHTML = '';
+
   ['honorarios', 'activos', 'confederados', 'aspirantes'].forEach(cat => {
-    document.getElementById('emSelect_' + cat).innerHTML = opcionesPersonas(DB.directorio[cat]);
+    registrarBuscadorPersona('em_' + cat, DB.directorio[cat], persona => agregarAsistente(cat, persona));
     document.getElementById('emChips_' + cat).innerHTML = '';
   });
-  document.getElementById('emMandoCompania').innerHTML = opcionesPersonas(DB.directorio.todos);
+  registrarBuscadorPersona('emMandoCompania', DB.directorio.todos, persona => {
+    EMERG_MANDO_COMPANIA = persona;
+    renderMandoCompaniaElegido();
+  });
+
+  iniciarTagsTexto('emMaquinas', []);
   document.querySelectorAll('.emMatMayor').forEach(cb => cb.addEventListener('change', renderUnidadesEmergencia));
   renderUnidadesEmergencia();
 }
 
-function agregarAsistente(cat) {
-  const sel = document.getElementById('emSelect_' + cat);
-  const clave = sel.value;
-  if (!clave) return;
-  if (EMERG_ASISTENTES[cat].some(a => a.clave === clave)) { sel.value = ''; return; }
-  const persona = (DB.directorio[cat] || []).find(p => p.clave === clave);
-  EMERG_ASISTENTES[cat].push({ clave, nombre: persona ? persona.nombre : clave, categoria: cat });
+function renderMandoCompaniaElegido() {
+  const cont = document.getElementById('emMandoCompaniaElegido');
+  cont.innerHTML = EMERG_MANDO_COMPANIA
+    ? `<div class="persona-elegida"><span>${escapeHtml(EMERG_MANDO_COMPANIA.nombre)} <span class="nota">(${escapeHtml(EMERG_MANDO_COMPANIA.clave)})</span></span>
+        <span class="quitar" onclick="EMERG_MANDO_COMPANIA=null; renderMandoCompaniaElegido();">✕</span></div>`
+    : '<p class="nota">Nadie seleccionado aún.</p>';
+}
+
+function agregarAsistente(cat, persona) {
+  if (EMERG_ASISTENTES[cat].some(a => a.clave === persona.clave)) return;
+  EMERG_ASISTENTES[cat].push({ clave: persona.clave, nombre: persona.nombre, categoria: cat });
   renderChipsAsistencia(cat);
-  sel.value = '';
 }
 
 function quitarAsistente(cat, clave) {
@@ -123,24 +345,42 @@ function quitarAsistente(cat, clave) {
 
 function renderChipsAsistencia(cat) {
   document.getElementById('emChips_' + cat).innerHTML = EMERG_ASISTENTES[cat].map(a =>
-    `<span class="badge badge-success" style="margin:2px 4px 2px 0;display:inline-block;">${escapeHtml(a.nombre)}
-      <span style="cursor:pointer;font-weight:800;" onclick="quitarAsistente('${cat}','${escapeHtml(a.clave)}')"> ✕</span></span>`
+    `<span class="tag-chip">${escapeHtml(a.nombre)}
+      <span class="quitar" onclick="quitarAsistente('${cat}','${escapeHtml(a.clave)}')">✕</span></span>`
   ).join('') || '<span class="nota">Nadie agregado aún.</span>';
 }
 
 function renderUnidadesEmergencia() {
   const seleccionadas = Array.from(document.querySelectorAll('.emMatMayor:checked')).map(cb => cb.value);
   const cont = document.getElementById('emUnidadesContenedor');
-  const opcionesConductores = opcionesPersonas(DB.directorio.conductores);
-  cont.innerHTML = seleccionadas.map(u => `
+  cont.innerHTML = seleccionadas.map(u => {
+    const idBusq = 'emCond_' + u;
+    return `
     <div class="mover-maquina">
       <h4 class="categoria-titulo">${u}</h4>
-      <label>Conductor <select id="emCond_${u}">${opcionesConductores}</select></label>
+      <label style="margin-bottom:6px;">Conductor</label>
+      ${tplBuscadorPersona(idBusq, 'Buscar por clave o nombre...')}
+      <div id="${idBusq}_elegido"></div>
       <label>Km salida <input id="emKmSalida_${u}" inputmode="numeric"></label>
       <label>Km regreso <input id="emKmRegreso_${u}" inputmode="numeric"></label>
-      <label>Material menor utilizado <input id="emMatMenor_${u}" placeholder="Ej: Extintor PQS x1"></label>
-    </div>`).join('') ||
-    '<p class="nota">Selecciona al menos un material mayor para registrar su conductor y kilometraje.</p>';
+      <label>Material menor utilizado</label>
+      ${tplTagsMaterial('emMat_' + u)}
+    </div>`;
+  }).join('') || '';
+
+  seleccionadas.forEach(u => {
+    if (!(u in EMERG_CONDUCTORES)) EMERG_CONDUCTORES[u] = null;
+    registrarBuscadorPersona('emCond_' + u, DB.directorio.conductores, persona => {
+      EMERG_CONDUCTORES[u] = persona;
+      renderConductorUnidadElegido(u);
+    });
+    renderConductorUnidadElegido(u);
+    iniciarTagsMaterial('emMat_' + u);
+  });
+
+  if (!seleccionadas.length) {
+    cont.innerHTML = '<p class="nota">Marca un material mayor arriba para registrar su conductor, kilometraje y material menor usado.</p>';
+  }
 }
 
 async function guardarEmergencia() {
@@ -149,28 +389,28 @@ async function guardarEmergencia() {
 
   const requeridos = {
     emFecha: 'Fecha de inicio', emHoraInicio: 'Hora inicio', emHoraTermino: 'Hora término',
-    emHoraCierre: 'Hora cierre parte', emMandoCBPM: 'Mando CBPM', emMandoCompania: 'Mando Compañía',
+    emHoraCierre: 'Hora cierre parte', emMandoCBPM: 'Mando CBPM',
     emTipoActo: 'Tipo de acto', emDireccion: 'Dirección', emCiudad: 'Ciudad'
   };
   for (const id in requeridos) {
     if (!val(id).trim()) { msg.textContent = 'Falta: ' + requeridos[id]; msg.className = 'mensaje mensaje-error'; return; }
   }
+  if (!EMERG_MANDO_COMPANIA) {
+    msg.textContent = 'Selecciona el Mando de Compañía.'; msg.className = 'mensaje mensaje-error'; return;
+  }
 
   const materialMayor = Array.from(document.querySelectorAll('.emMatMayor:checked')).map(cb => cb.value);
-  if (!materialMayor.length) {
-    msg.textContent = 'Selecciona al menos un material mayor concurrente.'; msg.className = 'mensaje mensaje-error'; return;
-  }
   const bombaInterna = [];
   if (document.getElementById('emBombaB2').checked) bombaInterna.push('B-2');
   if (document.getElementById('emBombaHX2').checked) bombaInterna.push('HX-2');
 
   const unidades = materialMayor.map(u => ({
     unidad: u,
-    conductor: val('emCond_' + u) || null,
+    conductor: (EMERG_CONDUCTORES[u] && EMERG_CONDUCTORES[u].clave) || null,
     kmSalida: val('emKmSalida_' + u),
     kmRegreso: val('emKmRegreso_' + u),
     bombaInterna: bombaInterna.includes(u),
-    materialMenor: val('emMatMenor_' + u)
+    materialMenor: textoTagsMaterial('emMat_' + u)
   }));
 
   const asistentes = [].concat(
@@ -179,8 +419,8 @@ async function guardarEmergencia() {
 
   const payload = {
     fechaInicio: val('emFecha'), horaInicio: val('emHoraInicio'), horaTermino: val('emHoraTermino'),
-    horaCierre: val('emHoraCierre'), mandoCBPM: val('emMandoCBPM'), mandoCompania: val('emMandoCompania'),
-    maquinas: val('emMaquinas'), tipoActo: val('emTipoActo'), direccion: val('emDireccion'), ciudad: val('emCiudad'),
+    horaCierre: val('emHoraCierre'), mandoCBPM: val('emMandoCBPM'), mandoCompania: EMERG_MANDO_COMPANIA.clave,
+    maquinas: (TAGS_TEXTO['emMaquinas'] || []).join(', '), tipoActo: val('emTipoActo'), direccion: val('emDireccion'), ciudad: val('emCiudad'),
     propietarioRut: val('emPropietario'), encargadoRut: val('emEncargado'), contacto: val('emContacto'),
     observacionesAntecedentes: val('emObsAntecedentes'), materialMayor, bombaInterna,
     observacionesMaterialMayor: val('emObsMatMayor'), unidades, asistentes
@@ -230,7 +470,25 @@ async function generarPDFParte(parteId, codigo, msg) {
 // ============================================================
 
 let GUARDIA_ACTUAL = { id: null, version: null };
-let GUARDIA_INTEGRANTES = [];
+let GUARDIA_JEFE = null;      // { clave, nombre, pieza, cama, observacion, deTurno }
+let GUARDIA_CONDUCTOR = null; // idem
+let GUARDIA_INTEGRANTES = []; // idem, sin esJefe/esConductor (siempre resto de la lista)
+
+function tplPersonaRolFija(idBase, titulo) {
+  return `<div class="mover-maquina" id="bloque_${idBase}">
+    <h4 class="categoria-titulo" style="margin-top:0;">${titulo}</h4>
+    <div id="${idBase}_elegido"></div>
+    ${tplBuscadorPersona(idBase, 'Buscar por clave o nombre...')}
+    <div id="${idBase}_campos" class="oculto">
+      <div class="filtros">
+        <label style="flex:1 1 90px;">Pieza (1-3) <input type="number" id="${idBase}_pieza" min="1" max="3"></label>
+        <label style="flex:1 1 90px;">Cama (1-4) <input type="number" id="${idBase}_cama" min="1" max="4"></label>
+        <label class="check-fila" style="flex:1 1 100px;align-self:center;"><input type="checkbox" id="${idBase}_turno" checked> ¿Turno?</label>
+      </div>
+      <label>Observación <input id="${idBase}_obs" placeholder="Opcional..."></label>
+    </div>
+  </div>`;
+}
 
 function abrirFormularioGuardia() {
   const cont = document.getElementById('contenidoGuardia');
@@ -243,25 +501,89 @@ function abrirFormularioGuardia() {
       </label>
     </div>
     <p id="guEstado" class="nota"></p>
-    <label>Observaciones generales <textarea id="guObservaciones" rows="2"></textarea></label>
 
     <h3 class="categoria-titulo">Emergencias del día</h3>
     <div id="guEmergenciasDia"><p class="nota">Selecciona fecha y tipo para ver las emergencias registradas ese día.</p></div>
 
-    <h3 class="categoria-titulo">Integrantes</h3>
-    <div class="filtros">
-      <select id="guSelectPersona" style="flex:2 1 200px;"></select>
-      <button type="button" class="btn-secundario" onclick="agregarIntegranteGuardia()">+ Agregar</button>
-    </div>
+    ${tplPersonaRolFija('guJefe', 'Jefe de Guardia *')}
+    ${tplPersonaRolFija('guConductor', 'Conductor *')}
+    <p class="nota" style="margin-top:-6px;">El Jefe de Guardia puede ser también el Conductor.</p>
+
+    <h3 class="categoria-titulo">Resto de Integrantes</h3>
+    ${tplBuscadorPersona('guIntegrante', 'Buscar por clave o nombre para agregar...')}
     <div id="guListaIntegrantes"></div>
+
+    <label>Observaciones generales de la guardia <textarea id="guObservaciones" rows="2"></textarea></label>
 
     <button class="btn-principal" onclick="guardarGuardia()" style="margin-top:16px;">Guardar guardia</button>
     <p id="guMensaje" class="mensaje"></p>
   `;
-  document.getElementById('guSelectPersona').innerHTML = opcionesPersonas(DB.directorio.todos);
+
+  GUARDIA_JEFE = null; GUARDIA_CONDUCTOR = null; GUARDIA_INTEGRANTES = [];
+
+  registrarBuscadorPersona('guJefe', DB.directorio.jefes, persona => seleccionarRolFijo('guJefe', persona));
+  registrarBuscadorPersona('guConductor', DB.directorio.conductores, persona => seleccionarRolFijo('guConductor', persona));
+  registrarBuscadorPersona('guIntegrante', listaDisponibleIntegrantes(), agregarIntegranteGuardia);
+
+  renderRolFijo('guJefe'); renderRolFijo('guConductor'); renderListaIntegrantesGuardia();
+
   document.getElementById('guFecha').addEventListener('change', cargarGuardiaExistente);
   document.getElementById('guTipo').addEventListener('change', cargarGuardiaExistente);
   cargarGuardiaExistente();
+}
+
+/** Cualquiera del directorio general, excepto quien ya sea Jefe o Conductor. */
+function listaDisponibleIntegrantes() {
+  const excluidas = new Set([GUARDIA_JEFE && GUARDIA_JEFE.clave, GUARDIA_CONDUCTOR && GUARDIA_CONDUCTOR.clave].filter(Boolean));
+  return (DB.directorio.todos || []).filter(p => !excluidas.has(p.clave));
+}
+
+function seleccionarRolFijo(idBase, persona) {
+  const datos = { clave: persona.clave, nombre: persona.nombre, pieza: '', cama: '', observacion: '', deTurno: true };
+  if (idBase === 'guJefe') GUARDIA_JEFE = datos; else GUARDIA_CONDUCTOR = datos;
+  // Si esa persona ya estaba como integrante suelto, se saca de ahí (ahora tiene un rol fijo).
+  GUARDIA_INTEGRANTES = GUARDIA_INTEGRANTES.filter(i => i.clave !== persona.clave);
+  renderRolFijo(idBase);
+  renderListaIntegrantesGuardia();
+  registrarBuscadorPersona('guIntegrante', listaDisponibleIntegrantes(), agregarIntegranteGuardia);
+}
+
+function quitarRolFijo(idBase) {
+  if (idBase === 'guJefe') GUARDIA_JEFE = null; else GUARDIA_CONDUCTOR = null;
+  renderRolFijo(idBase);
+  registrarBuscadorPersona('guIntegrante', listaDisponibleIntegrantes(), agregarIntegranteGuardia);
+}
+
+function renderRolFijo(idBase) {
+  const datos = idBase === 'guJefe' ? GUARDIA_JEFE : GUARDIA_CONDUCTOR;
+  const elegido = document.getElementById(idBase + '_elegido');
+  const buscador = document.getElementById('busq_' + idBase).closest('.buscador-persona');
+  const campos = document.getElementById(idBase + '_campos');
+
+  if (!datos) {
+    elegido.innerHTML = '';
+    buscador.classList.remove('oculto');
+    campos.classList.add('oculto');
+    return;
+  }
+  elegido.innerHTML = `<div class="persona-elegida"><span>${escapeHtml(datos.nombre)} <span class="nota">(${escapeHtml(datos.clave)})</span></span>
+    <span class="quitar" onclick="quitarRolFijo('${idBase}')">✕</span></div>`;
+  buscador.classList.add('oculto');
+  campos.classList.remove('oculto');
+  document.getElementById(idBase + '_pieza').value = datos.pieza;
+  document.getElementById(idBase + '_cama').value = datos.cama;
+  document.getElementById(idBase + '_turno').checked = datos.deTurno;
+  document.getElementById(idBase + '_obs').value = datos.observacion;
+}
+
+function leerCamposRolFijo(idBase) {
+  const datos = idBase === 'guJefe' ? GUARDIA_JEFE : GUARDIA_CONDUCTOR;
+  if (!datos) return null;
+  datos.pieza = val(idBase + '_pieza');
+  datos.cama = val(idBase + '_cama');
+  datos.deTurno = document.getElementById(idBase + '_turno').checked;
+  datos.observacion = val(idBase + '_obs');
+  return datos;
 }
 
 async function cargarGuardiaExistente() {
@@ -285,31 +607,35 @@ async function cargarGuardiaExistente() {
       </label>`).join('')
     : '<p class="nota">No hay emergencias registradas ese día.</p>';
 
+  GUARDIA_JEFE = null; GUARDIA_CONDUCTOR = null; GUARDIA_INTEGRANTES = [];
+
   if (guardia) {
     GUARDIA_ACTUAL = { id: guardia.id, version: guardia.version };
-    GUARDIA_INTEGRANTES = guardia.integrantes.map(i => ({
-      clave: i.clave, nombre: i.nombre, esJefe: i.es_jefe, esConductor: i.es_conductor,
-      pieza: i.pieza || '', cama: i.cama || '', observacion: i.observacion || '', deTurno: i.de_turno
-    }));
+    (guardia.integrantes || []).forEach(i => {
+      const datos = {
+        clave: i.clave, nombre: i.nombre, pieza: i.pieza || '', cama: i.cama || '',
+        observacion: i.observacion || '', deTurno: i.de_turno
+      };
+      if (i.es_jefe) GUARDIA_JEFE = datos;
+      else if (i.es_conductor) GUARDIA_CONDUCTOR = datos;
+      else GUARDIA_INTEGRANTES.push(datos);
+    });
     document.getElementById('guObservaciones').value = guardia.observaciones || '';
     estado.textContent = `Editando guardia existente (v${guardia.version}) — creada por ${guardia.creado_por}. Guardar la actualizará.`;
   } else {
     GUARDIA_ACTUAL = { id: null, version: null };
-    GUARDIA_INTEGRANTES = [];
     document.getElementById('guObservaciones').value = '';
     estado.textContent = 'No existe una guardia registrada para esa fecha y tipo. Se creará una nueva.';
   }
-  renderListaIntegrantesGuardia();
+
+  renderRolFijo('guJefe'); renderRolFijo('guConductor'); renderListaIntegrantesGuardia();
+  registrarBuscadorPersona('guIntegrante', listaDisponibleIntegrantes(), agregarIntegranteGuardia);
 }
 
-function agregarIntegranteGuardia() {
-  const clave = val('guSelectPersona');
-  if (!clave) return;
-  if (GUARDIA_INTEGRANTES.some(i => i.clave === clave)) return;
-  const persona = (DB.directorio.todos || []).find(p => p.clave === clave);
+function agregarIntegranteGuardia(persona) {
+  if (GUARDIA_INTEGRANTES.some(i => i.clave === persona.clave)) return;
   GUARDIA_INTEGRANTES.push({
-    clave, nombre: persona ? persona.nombre : clave, esJefe: false, esConductor: false,
-    pieza: '', cama: '', observacion: '', deTurno: true
+    clave: persona.clave, nombre: persona.nombre, pieza: '', cama: '', observacion: '', deTurno: true
   });
   renderListaIntegrantesGuardia();
 }
@@ -324,64 +650,53 @@ function actualizarCampoIntegrante(clave, campo, valor) {
   if (i) i[campo] = valor;
 }
 
-function flagsDirectorio(clave) {
-  const p = (DB.directorio.todos || []).find(x => x.clave === clave) || {};
-  return {
-    puedeSerJefe: (DB.directorio.jefes || []).some(j => j.clave === clave),
-    puedeSerConductor: (DB.directorio.conductores || []).some(c => c.clave === clave)
-  };
-}
-
 function renderListaIntegrantesGuardia() {
   const cont = document.getElementById('guListaIntegrantes');
   if (!GUARDIA_INTEGRANTES.length) { cont.innerHTML = '<p class="nota">Aún no agregas integrantes.</p>'; return; }
-  cont.innerHTML = GUARDIA_INTEGRANTES.map(i => {
-    const f = flagsDirectorio(i.clave);
-    return `<div class="item-material" style="align-items:flex-start;flex-wrap:wrap;">
+  cont.innerHTML = GUARDIA_INTEGRANTES.map(i => `
+    <div class="item-material" style="align-items:flex-start;flex-wrap:wrap;">
       <div class="item-info">
         <div class="item-nombre">${escapeHtml(i.nombre)} <span class="nota">(${escapeHtml(i.clave)})</span></div>
         <div class="filtros" style="margin-top:6px;">
-          <label class="check-fila" title="${f.puedeSerJefe ? '' : 'No está habilitado como Jefe de Guardia'}">
-            <input type="checkbox" ${i.esJefe ? 'checked' : ''} ${f.puedeSerJefe ? '' : 'disabled'}
-              onchange="actualizarCampoIntegrante('${escapeHtml(i.clave)}','esJefe',this.checked)"> Jefe de Guardia
-          </label>
-          <label class="check-fila" title="${f.puedeSerConductor ? '' : 'No está habilitado como Conductor'}">
-            <input type="checkbox" ${i.esConductor ? 'checked' : ''} ${f.puedeSerConductor ? '' : 'disabled'}
-              onchange="actualizarCampoIntegrante('${escapeHtml(i.clave)}','esConductor',this.checked)"> Conductor
-          </label>
-          <label class="check-fila">
-            <input type="checkbox" ${i.deTurno ? 'checked' : ''}
-              onchange="actualizarCampoIntegrante('${escapeHtml(i.clave)}','deTurno',this.checked)"> De turno
-          </label>
-        </div>
-        <div class="filtros" style="margin-top:6px;">
-          <input placeholder="Pieza" value="${escapeHtml(i.pieza)}" style="flex:1 1 100px;"
+          <input placeholder="Pieza" value="${escapeHtml(i.pieza)}" style="flex:1 1 90px;"
             oninput="actualizarCampoIntegrante('${escapeHtml(i.clave)}','pieza',this.value)">
-          <input placeholder="Cama" value="${escapeHtml(i.cama)}" style="flex:1 1 100px;"
+          <input placeholder="Cama" value="${escapeHtml(i.cama)}" style="flex:1 1 90px;"
             oninput="actualizarCampoIntegrante('${escapeHtml(i.clave)}','cama',this.value)">
+          <label class="check-fila" style="flex:1 1 90px;">
+            <input type="checkbox" ${i.deTurno ? 'checked' : ''}
+              onchange="actualizarCampoIntegrante('${escapeHtml(i.clave)}','deTurno',this.checked)"> Turno
+          </label>
           <input placeholder="Observación" value="${escapeHtml(i.observacion)}" style="flex:2 1 160px;"
             oninput="actualizarCampoIntegrante('${escapeHtml(i.clave)}','observacion',this.value)">
         </div>
         <button type="button" class="btn-secundario" style="margin-top:8px;"
           onclick="quitarIntegranteGuardia('${escapeHtml(i.clave)}')">Quitar</button>
       </div>
-    </div>`;
-  }).join('');
+    </div>`).join('');
 }
 
 async function guardarGuardia() {
   const msg = document.getElementById('guMensaje');
   msg.textContent = ''; msg.className = 'mensaje';
 
-  if (!GUARDIA_INTEGRANTES.length) { msg.textContent = 'Agrega al menos un integrante.'; msg.className = 'mensaje mensaje-error'; return; }
-  const jefes = GUARDIA_INTEGRANTES.filter(i => i.esJefe);
-  if (jefes.length !== 1) { msg.textContent = 'Debe haber exactamente un Jefe de Guardia.'; msg.className = 'mensaje mensaje-error'; return; }
+  leerCamposRolFijo('guJefe');
+  leerCamposRolFijo('guConductor');
+
+  if (!GUARDIA_JEFE) { msg.textContent = 'Falta el Jefe de Guardia.'; msg.className = 'mensaje mensaje-error'; return; }
+  if (!GUARDIA_CONDUCTOR) { msg.textContent = 'Falta el Conductor.'; msg.className = 'mensaje mensaje-error'; return; }
+
+  const mismaClave = GUARDIA_JEFE.clave === GUARDIA_CONDUCTOR.clave;
+  const integrantesFinal = [
+    { ...GUARDIA_JEFE, esJefe: true, esConductor: mismaClave },
+  ];
+  if (!mismaClave) integrantesFinal.push({ ...GUARDIA_CONDUCTOR, esJefe: false, esConductor: true });
+  GUARDIA_INTEGRANTES.forEach(i => integrantesFinal.push({ ...i, esJefe: false, esConductor: false }));
 
   const parteIds = Array.from(document.querySelectorAll('.guEmergenciaChk:checked')).map(cb => cb.value);
   const payload = {
     fecha: val('guFecha'), tipo: val('guTipo'), observaciones: val('guObservaciones'),
     versionBase: GUARDIA_ACTUAL.version === null ? null : String(GUARDIA_ACTUAL.version),
-    integrantes: GUARDIA_INTEGRANTES.map(i => ({
+    integrantes: integrantesFinal.map(i => ({
       clave: i.clave, esJefe: i.esJefe, esConductor: i.esConductor,
       pieza: i.pieza, cama: i.cama, observacion: i.observacion, deTurno: i.deTurno
     })),

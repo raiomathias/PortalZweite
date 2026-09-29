@@ -338,7 +338,36 @@ form label { display: block; margin-bottom: 10px; font-size: 0.85rem; color: #55
 }
 /* ---------- NIVELES DE CARGA ---------- */
 .check-fila { display: flex; align-items: center; gap: 8px; }
-.check-fila input { width: auto; margin: 0; }
+.check-fila input { width: auto; margin: 0; flex: none; } /* evita que ".filtros input" le imponga flex-basis:140px y parta el texto */
+
+/* ---------- BUSCADOR DE PERSONAS (clave o nombre) ---------- */
+.buscador-persona { position: relative; margin-bottom: 10px; }
+.resultados-busqueda {
+  position: absolute; z-index: 6; top: 100%; left: 0; right: 0;
+  background: var(--color-tarjeta); border: 1px solid var(--color-borde);
+  border-radius: 10px; max-height: 220px; overflow-y: auto;
+  box-shadow: 0 6px 16px rgba(0,0,0,0.12); margin-top: 4px;
+}
+.resultado-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--color-borde); }
+.resultado-item:last-child { border-bottom: none; }
+.resultado-item:hover, .resultado-item:active { background: rgba(124,45,61,0.08); }
+.persona-elegida {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  background: var(--color-tarjeta); border: 1px solid var(--color-borde);
+  border-radius: 10px; padding: 10px 12px; margin-bottom: 10px;
+}
+.persona-elegida .quitar { color: var(--color-error); font-weight: 800; cursor: pointer; }
+
+/* ---------- TAGS (maquinas concurrentes / material menor) ---------- */
+.tags-contenedor { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.tag-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: rgba(124,45,61,0.1); color: var(--color-primario);
+  border-radius: 999px; padding: 5px 10px; font-size: 0.85rem; font-weight: 600;
+}
+.tag-chip .quitar { cursor: pointer; font-weight: 800; }
+.tags-fila-input { display: flex; gap: 8px; margin-bottom: 4px; }
+.tags-fila-input input { margin-bottom: 0; }
 .carga-item { align-items: flex-start; }
 .carga-item .item-detalle { white-space: normal; }
 .carga-barra { height: 10px; background: var(--color-borde); border-radius: 999px; overflow: hidden; margin: 8px 0 4px; }
