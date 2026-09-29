@@ -119,7 +119,8 @@ const TAGS_TEXTO = {};
 function tplTagsTexto(id, placeholder) {
   return `<div class="tags-fila-input">
     <input type="text" id="tagIn_${id}" placeholder="${placeholder || 'Escribe y presiona coma o Enter'}"
-      oninput="onInputTagsTexto('${id}')" onkeydown="onKeydownTagsTexto('${id}', event)">
+      oninput="onInputTagsTexto('${id}')" onkeydown="onKeydownTagsTexto('${id}', event)"
+      onblur="confirmarTagTexto('${id}')">
   </div>
   <div id="tagLista_${id}" class="tags-contenedor"></div>`;
 }
@@ -145,6 +146,18 @@ function onKeydownTagsTexto(id, e) {
   const input = document.getElementById('tagIn_' + id);
   const t = input.value.trim();
   if (t) { TAGS_TEXTO[id].push(t); input.value = ''; renderTagsTexto(id); }
+}
+
+/** Convierte en tag el texto que quedó escrito sin coma ni Enter. */
+function confirmarTagTexto(id) {
+  const input = document.getElementById('tagIn_' + id);
+  if (!input) return;
+  const t = input.value.trim();
+  if (!t) return;
+  if (!TAGS_TEXTO[id]) TAGS_TEXTO[id] = [];
+  TAGS_TEXTO[id].push(t);
+  input.value = '';
+  renderTagsTexto(id);
 }
 
 function quitarTagTexto(id, indice) {
@@ -281,7 +294,8 @@ function abrirFormularioEmergencia() {
     ${tplBuscadorPersona('emMandoCompania', 'Buscar por clave o nombre...')}
     <div id="emMandoCompaniaElegido"></div>
 
-    <label>Máquinas concurrentes</label>
+    <label>Máquinas concurrentes (opcional)</label>
+    <p class="nota" style="margin:0 0 6px;">Escribe una máquina y presiona <strong>coma ( , )</strong> o <strong>Enter</strong> para agregarla a la lista. Repite con cada máquina.</p>
     ${tplTagsTexto('emMaquinas', 'Ej: B1, B2, HX2, R4')}
 
     <label>Tipo de acto <input id="emTipoActo" placeholder="Ej: 10-5-1"></label>
@@ -398,6 +412,7 @@ function renderUnidadesEmergencia() {
 }
 
 async function guardarEmergencia() {
+  confirmarTagTexto('emMaquinas'); // si quedó una máquina escrita sin coma, se agrega igual
   const msg = document.getElementById('emMensaje');
   msg.textContent = ''; msg.className = 'mensaje';
 
@@ -473,8 +488,8 @@ async function generarPDFParte(parteId, codigo, msg) {
     await cliente.rpc('pd_actualizar_pdf', {
       p_token: SESION.token, p_id: parteId, p_estado: 'error', p_slides_url: null, p_pdf_url: null, p_error: texto
     });
-    msg.innerHTML = `⚠️ El parte <strong>${escapeHtml(codigo)}</strong> quedó guardado, pero el PDF falló: ` +
-      `${escapeHtml(texto)}. Avisa al administrador para generarlo manualmente.`;
+    msg.innerHTML = `⚠️ El parte <strong>${escapeHtml(codigo)}</strong> quedó guardado: ` +
+      `${escapeHtml(texto)}..`;
     msg.className = 'mensaje mensaje-error';
   }
 }
