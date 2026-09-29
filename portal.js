@@ -488,8 +488,8 @@ async function generarPDFParte(parteId, codigo, msg) {
     await cliente.rpc('pd_actualizar_pdf', {
       p_token: SESION.token, p_id: parteId, p_estado: 'error', p_slides_url: null, p_pdf_url: null, p_error: texto
     });
-    msg.innerHTML = `⚠️ El parte <strong>${escapeHtml(codigo)}</strong> quedó guardado: ` +
-      `${escapeHtml(texto)}..`;
+    msg.innerHTML = `⚠️ El parte <strong>${escapeHtml(codigo)}</strong> quedó guardado, pero el PDF falló: ` +
+      `${escapeHtml(texto)}. Avisa al administrador para generarlo manualmente.`;
     msg.className = 'mensaje mensaje-error';
   }
 }
@@ -767,6 +767,8 @@ function abrirPerfil() {
       <input id="pfAnio" type="number" class="oculto" style="width:100px;" value="${hoy.getFullYear()}">
       <button class="btn-secundario" onclick="cargarPerfil()">Ver</button>
     </div>
+    <input type="file" id="pfFotoInput" accept="image/*" class="oculto" onchange="subirFotoPerfil(this)">
+    <p id="pfFotoMensaje" class="mensaje"></p>
     <div id="pfContenido"></div>
   `;
   document.getElementById('pfModo').addEventListener('change', () => {
@@ -799,16 +801,12 @@ async function cargarPerfil() {
 
   const [{ data: perfil, error: e1 }, { data: podio, error: e2 }] = await Promise.all([
     cliente.rpc('pd_perfil', { p_token: SESION.token, p_clave: null, p_desde: desde, p_hasta: hasta }),
-    cliente.rpc('pd_top3_podio', { p_token: SESION.token, p_desde: desde, p_hasta: hasta })
+    cliente.rpc('pd_ranking_asistencia', { p_token: SESION.token, p_desde: desde, p_hasta: hasta })
   ]);
 
   if (e1) { cont.innerHTML = `<p class="mensaje-error">${escapeHtml(e1.message)}</p>`; return; }
 
-  const podioHtml = (!e2 && podio && podio.length)
-    ? '<h3 class="categoria-titulo">🏆 Podio del período</h3>' + podio.map((p, idx) =>
-        `<div class="item-material"><div class="item-info"><div class="item-nombre">${'🥇🥈🥉'[idx] || ''} ${escapeHtml(p.nombre)}</div>
-         <div class="item-detalle">${p.total} guardia(s)</div></div></div>`).join('')
-    : '';
+  const podioHtml = !e2 ? renderRankingPerfil(podio) : `<p class="mensaje-error">${escapeHtml(e2.message)}</p>`;
 
   cont.innerHTML = `
     <p class="nota">Del ${formatearFecha(perfil.desde)} al ${formatearFecha(perfil.hasta)}</p>
@@ -839,6 +837,162 @@ async function cargarPerfil() {
         <div class="item-detalle">${formatearFecha(e.fecha)} · ${escapeHtml(e.tipoActo)}</div>
       </div></div>`).join('') : '<p class="nota">No hay emergencias registradas en este período.</p>'}
   `;
+}
+
+// ============================================================
+// CLASIFICACION DE ASISTENCIA (podio estilo automovilismo) + FOTOS
+// ============================================================
+
+let PF_FOTO_CLAVE = null;
+
+function inicialesPersona(nombre) {
+  const partes = String(nombre || '?').replace(/[.,]/g, ' ').split(/\s+/).filter(Boolean);
+  return ((partes[0] || '?')[0] + ((partes[1] || '')[0] || '')).toUpperCase();
+}
+
+function colorPersona(clave) {
+  let h = 0;
+  String(clave || '').split('').forEach(ch => { h = (h * 31 + ch.charCodeAt(0)) % 360; });
+  return `hsl(${h}, 45%, 38%)`;
+}
+
+/** Foto si existe; si no, círculo con iniciales. */
+function avatarPersona(p, tam) {
+  const t = tam || 44;
+  if (p.foto_url) {
+    return `<img class="avatar" width="${t}" height="${t}" style="width:${t}px;height:${t}px;" src="${escapeHtml(p.foto_url)}" alt="" loading="lazy">`;
+  }
+  return `<div class="avatar-ini" style="width:${t}px;height:${t}px;font-size:${Math.round(t * 0.38)}px;background:${colorPersona(p.clave)};">${escapeHtml(inicialesPersona(p.nombre))}</div>`;
+}
+
+function botonCamaraPerfil(clave) {
+  const esAdmin = SESION.permisos === 'Administrador de sistema';
+  if (!esAdmin) return '';
+  return `<button type="button" class="gp-cam" title="Cambiar foto" onclick="event.stopPropagation(); elegirFotoPerfil('${escapeHtml(clave)}')">📷</button>`;
+}
+
+function claseColorPos(pos) {
+  return pos === 1 ? 'gp-oro' : pos === 2 ? 'gp-plata' : pos === 3 ? 'gp-bronce' : 'gp-otro';
+}
+
+function filaClasificacion(p, opciones) {
+  const o = opciones || {};
+  return `<div class="gp-fila ${claseColorPos(p.pos)} ${o.yo ? 'gp-yo' : ''}">
+    <div class="gp-pos">P${p.pos}</div>
+    ${avatarPersona(p, 38)}
+    <div class="gp-info">
+      <div class="gp-nombre">${escapeHtml(p.nombre)}</div>
+      <div class="gp-detalle">${escapeHtml(o.detalle || p.clave)}</div>
+    </div>
+    ${botonCamaraPerfil(p.clave)}
+    <div class="gp-total">${p.total}<small>emerg.</small></div>
+  </div>`;
+}
+
+function renderRankingPerfil(r) {
+  if (!r) return '';
+  const top = r.top || [];
+  const yo = r.yo;
+
+  // ---- Podio (los 3 primeros: P2 | P1 | P3) ----
+  let podioHtml = '';
+  if (top.length) {
+    const slot = (p, altura) => {
+      if (!p) return '<div class="gp-slot gp-vacio"></div>';
+      return `<div class="gp-slot ${claseColorPos(p.pos)}">
+        <div class="gp-slot-av">${avatarPersona(p, 56)}${botonCamaraPerfil(p.clave)}</div>
+        <div class="gp-slot-nombre">${escapeHtml(p.nombre)}</div>
+        <div class="gp-slot-total">${p.total} emerg.</div>
+        <div class="gp-bloque ${altura}">P${p.pos}</div>
+      </div>`;
+    };
+    podioHtml = `<div class="gp-card"><div class="gp-podio">
+      ${slot(top[1], 'gp-h2')}${slot(top[0], 'gp-h1')}${slot(top[2], 'gp-h3')}
+    </div></div>`;
+  }
+
+  // ---- P4 y P5 ----
+  const resto = top.slice(3).map(p => filaClasificacion(p, { yo: yo && p.clave === yo.clave })).join('');
+
+  // ---- Tu posición: uno arriba, tú, uno abajo ----
+  let torre = '';
+  if (yo) {
+    const arriba = r.arriba
+      ? filaClasificacion(r.arriba, { detalle: `A ${r.arriba.total - yo.total} emergencia(s) de alcanzarlo` })
+      : '<div class="gp-hueco">🏁 Nadie tiene más asistencias que tú en este período.</div>';
+    const abajo = r.abajo
+      ? filaClasificacion(r.abajo, { detalle: `Te sigue a ${yo.total - r.abajo.total} emergencia(s)` })
+      : '<div class="gp-hueco">Nadie tiene menos asistencias que tú.</div>';
+    torre = `<h3 class="categoria-titulo gp-titulo">Tu posición</h3>
+      <div class="gp-torre">
+        ${arriba}
+        ${filaClasificacion(yo, { yo: true })}
+        ${abajo}
+      </div>
+      <button type="button" class="btn-secundario" style="margin-top:10px;" onclick="elegirFotoPerfil('${escapeHtml(yo.clave)}')">📷 Cambiar mi foto</button>`;
+  }
+
+  const sinDatos = !top.length
+    ? '<p class="nota">Todavía no hay asistencias registradas en este período.</p>' : '';
+
+  return `<h3 class="categoria-titulo gp-titulo">🏆 Clasificación de asistencia</h3>
+    <p class="nota" style="margin-top:0;">Emergencias asistidas en el período (sin partes de prueba).</p>
+    ${sinDatos}${podioHtml}
+    <div class="gp-torre">${resto}</div>
+    ${torre}`;
+}
+
+function elegirFotoPerfil(clave) {
+  PF_FOTO_CLAVE = clave;
+  document.getElementById('pfFotoInput').click();
+}
+
+/** Recorta al centro en cuadrado y reduce a `lado` px (JPEG). */
+function recortarCuadrado(file, lado) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(img.width, img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = lado;
+      canvas.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, lado, lado);
+      URL.revokeObjectURL(url);
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('No se pudo procesar la imagen.')), 'image/jpeg', 0.85);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('El archivo no es una imagen válida.')); };
+    img.src = url;
+  });
+}
+
+async function subirFotoPerfil(input) {
+  const file = input.files[0];
+  input.value = '';
+  const clave = PF_FOTO_CLAVE;
+  const msg = document.getElementById('pfFotoMensaje');
+  if (!file || !clave) return;
+
+  msg.textContent = 'Subiendo foto...'; msg.className = 'mensaje';
+  try {
+    const blob = await recortarCuadrado(file, 320);
+    const nombreArchivo = 'perfil-' + String(clave).replace(/[^A-Za-z0-9_-]/g, '_') + '-' + Date.now() + '.jpg';
+    const { error: eSubida } = await cliente.storage
+      .from(CONFIG.NOMBRE_BUCKET_FOTOS)
+      .upload(nombreArchivo, new File([blob], nombreArchivo, { type: 'image/jpeg' }), { upsert: true });
+    if (eSubida) throw new Error(eSubida.message);
+
+    const { data: urlData } = cliente.storage.from(CONFIG.NOMBRE_BUCKET_FOTOS).getPublicUrl(nombreArchivo);
+    const { error } = await cliente.rpc('pd_set_foto_perfil', {
+      p_token: SESION.token, p_clave: clave, p_url: urlData.publicUrl
+    });
+    if (error) throw new Error(error.message);
+
+    msg.textContent = 'Foto actualizada.';
+    cargarPerfil();
+  } catch (err) {
+    msg.textContent = 'No se pudo actualizar la foto: ' + ((err && err.message) || err);
+    msg.className = 'mensaje mensaje-error';
+  }
 }
 
 // ============================================================
