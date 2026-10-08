@@ -521,6 +521,10 @@ function abrirFormularioGuardia() {
     <p class="nota" style="margin-top:-6px;">El Jefe de Guardia puede ser también el Conductor.</p>
 
     <h3 class="categoria-titulo">Resto de Integrantes</h3>
+    <div style="display:flex; gap:10px; align-items:center; margin-bottom:10px; flex-wrap:wrap;">
+      <button type="button" class="btn-secundario" style="margin-bottom:0;" onclick="seleccionarTodosIntegrantesGuardia()">✓ Seleccionar Todos</button>
+      <button type="button" class="btn-texto" style="margin-bottom:0;" onclick="limpiarTodosIntegrantesGuardia()">✕ Quitar Todos</button>
+    </div>
     ${tplBuscadorPersona('guIntegrante', 'Buscar por clave o nombre para agregar...')}
     <div id="guListaIntegrantes"></div>
 
@@ -532,8 +536,9 @@ function abrirFormularioGuardia() {
 
   GUARDIA_JEFE = null; GUARDIA_CONDUCTOR = null; GUARDIA_INTEGRANTES = [];
 
-  registrarBuscadorPersona('guJefe', DB.directorio.jefes, persona => seleccionarRolFijo('guJefe', persona));
-  registrarBuscadorPersona('guConductor', DB.directorio.conductores, persona => seleccionarRolFijo('guConductor', persona));
+  // Se utiliza DB.directorio.todos para que aparezca todo el personal sin filtros
+  registrarBuscadorPersona('guJefe', DB.directorio.todos, persona => seleccionarRolFijo('guJefe', persona));
+  registrarBuscadorPersona('guConductor', DB.directorio.todos, persona => seleccionarRolFijo('guConductor', persona));
   registrarBuscadorPersona('guIntegrante', listaDisponibleIntegrantes(), agregarIntegranteGuardia);
 
   renderRolFijo('guJefe'); renderRolFijo('guConductor'); renderListaIntegrantesGuardia();
@@ -647,13 +652,33 @@ function agregarIntegranteGuardia(persona) {
     clave: persona.clave, nombre: persona.nombre, pieza: '', cama: '', observacion: '', deTurno: true
   });
   renderListaIntegrantesGuardia();
+  registrarBuscadorPersona('guIntegrante', listaDisponibleIntegrantes(), agregarIntegranteGuardia);
+}
+
+function seleccionarTodosIntegrantesGuardia() {
+  const disponibles = listaDisponibleIntegrantes();
+  disponibles.forEach(persona => {
+    if (!GUARDIA_INTEGRANTES.some(i => i.clave === persona.clave)) {
+      GUARDIA_INTEGRANTES.push({
+        clave: persona.clave, nombre: persona.nombre, pieza: '', cama: '', observacion: '', deTurno: true
+      });
+    }
+  });
+  renderListaIntegrantesGuardia();
+  registrarBuscadorPersona('guIntegrante', listaDisponibleIntegrantes(), agregarIntegranteGuardia);
+}
+
+function limpiarTodosIntegrantesGuardia() {
+  GUARDIA_INTEGRANTES = [];
+  renderListaIntegrantesGuardia();
+  registrarBuscadorPersona('guIntegrante', listaDisponibleIntegrantes(), agregarIntegranteGuardia);
 }
 
 function quitarIntegranteGuardia(clave) {
   GUARDIA_INTEGRANTES = GUARDIA_INTEGRANTES.filter(i => i.clave !== clave);
   renderListaIntegrantesGuardia();
+  registrarBuscadorPersona('guIntegrante', listaDisponibleIntegrantes(), agregarIntegranteGuardia);
 }
-
 function actualizarCampoIntegrante(clave, campo, valor) {
   const i = GUARDIA_INTEGRANTES.find(x => x.clave === clave);
   if (i) i[campo] = valor;
