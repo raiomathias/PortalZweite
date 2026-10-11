@@ -66,7 +66,8 @@ async function cerrarSesionUI() {
   sessionStorage.removeItem('token');
   SESION = { token: null, nombre: null, permisos: null, permisosObj: null };
   DB.inventario = [];
-  document.getElementById('app').classList.add('oculto');
+  // Ocultar todas las pantallas (incluida la pantalla final del parte) antes de volver al login.
+  document.querySelectorAll('.pantalla').forEach(pantalla => pantalla.classList.add('oculto'));
   document.getElementById('pantallaLogin').classList.remove('oculto');
   document.getElementById('loginUsuario').value = '';
   document.getElementById('loginContrasena').value = '';
