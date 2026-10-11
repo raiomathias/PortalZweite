@@ -526,3 +526,39 @@ input:focus, select:focus, textarea:focus {
   .aviso-cierre-sesion { background: #332b18; color: #ffedb5; border-color: #80621c; }
   .emergencia-final-icono { background: #183b25; color: #a8e5b7; }
 }
+
+
+/* ---------- CONTADOR DE VERSION ---------- */
+.version-app {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  padding: 4px 8px;
+  border: 1px solid rgba(255,255,255,0.42);
+  border-radius: 7px;
+  background: rgba(255,255,255,0.14);
+  color: #fff;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.emergencia-final-cerrar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.emergencia-final-cerrar .btn-principal {
+  flex: 1;
+  width: auto;
+}
+.version-app-final {
+  color: var(--color-primario);
+  border-color: var(--color-borde);
+  background: var(--color-tarjeta);
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
