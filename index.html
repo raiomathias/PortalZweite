@@ -67,6 +67,29 @@
     <div id="contenidoEmergencia" class="vista" style="max-width:640px;"></div>
   </div>
 
+  <!-- ===================== FIN DE EMERGENCIA ===================== -->
+  <div id="pantallaEmergenciaFinal" class="pantalla oculto">
+    <header class="topbar">
+      <strong>✅ Parte de emergencia finalizado</strong>
+      <span style="width:60px;"></span>
+    </header>
+    <main class="vista emergencia-final">
+      <div class="emergencia-final-icono" aria-hidden="true">✓</div>
+      <h1>Parte registrado</h1>
+      <p id="emFinalResumen" class="emergencia-final-resumen"></p>
+      <div id="emFinalPDF" class="emergencia-final-pdf"></div>
+      <section class="aviso-cierre-sesion" role="note" aria-label="Aviso de seguridad">
+        <h2>🔒 Protege tu cuenta y el registro institucional</h2>
+        <p>Si ya no vas a utilizar el sistema, <strong>cierra sesión antes de dejar el computador</strong>.</p>
+        <p>Si dejas tu sesión iniciada, otra persona podría realizar acciones bajo tu nombre. Esas acciones podrían atribuirse a ti y traerte consecuencias. <strong>Es responsabilidad de cada voluntario cerrar sesión correctamente</strong>, especialmente en equipos de uso público o compartido.</p>
+      </section>
+      <div class="emergencia-final-acciones">
+        <button class="btn-principal" onclick="cerrarSesionUI()">🔒 Cerrar sesión</button>
+        <button class="btn-secundario emergencia-final-menu" onclick="volverAlMenu()">Volver al menú principal</button>
+      </div>
+    </main>
+  </div>
+
   <!-- ===================== GUARDIA ===================== -->
   <div id="pantallaGuardia" class="pantalla oculto">
     <header class="topbar">

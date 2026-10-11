@@ -503,3 +503,26 @@ input:focus, select:focus, textarea:focus {
 .gp-card .gp-cam { background: rgba(255,255,255,0.18); position: absolute; margin: -6px 0 0 -4px; }
 .gp-slot-av { position: relative; display: inline-block; }
 .gp-slot-av .gp-cam { position: absolute; right: -8px; bottom: 4px; width: 24px; height: 24px; }
+/* ---------- FINALIZACIÓN SEGURA DEL PARTE DE EMERGENCIA ---------- */
+.emergencia-final { max-width: 620px; padding-top: 30px; padding-bottom: 40px; }
+.emergencia-final-icono {
+  width: 64px; height: 64px; margin: 0 auto 16px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: #e4f5e8; color: #216e39; font-size: 2rem; font-weight: 800;
+}
+.emergencia-final h1 { text-align: center; margin: 0 0 8px; font-size: 1.6rem; }
+.emergencia-final-resumen { text-align: center; margin: 0 0 16px; }
+.emergencia-final-pdf { text-align: center; margin: 0 0 22px; overflow-wrap: anywhere; }
+.emergencia-final-pdf a { color: var(--color-primario); font-weight: 700; }
+.aviso-cierre-sesion {
+  border: 1px solid #e3b341; border-left: 5px solid #c28a00; border-radius: 12px;
+  background: #fff8df; color: #4a3a10; padding: 16px; margin: 18px 0 22px;
+}
+.aviso-cierre-sesion h2 { margin: 0 0 10px; font-size: 1.05rem; }
+.aviso-cierre-sesion p { line-height: 1.5; margin: 8px 0 0; }
+.emergencia-final-acciones { display: flex; flex-direction: column; gap: 10px; }
+.emergencia-final-menu { width: 100%; margin: 0; padding: 13px; font-size: 1rem; font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  .aviso-cierre-sesion { background: #332b18; color: #ffedb5; border-color: #80621c; }
+  .emergencia-final-icono { background: #183b25; color: #a8e5b7; }
+}

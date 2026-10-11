@@ -88,7 +88,15 @@ function seleccionarBuscadorPersona(id, clave) {
   const input = document.getElementById('busq_' + id);
   const cont = document.getElementById('resultados_' + id);
   if (input) input.value = '';
-  if (cont) { cont.classList.add('oculto'); cont.innerHTML = ''; }
+
+  // Mantener abiertas las listas de asistencia para agregar varias personas seguidas.
+  const esListaAsistencia = ['em_honorarios', 'em_activos', 'em_confederados', 'em_aspirantes'].includes(id);
+  if (cont && esListaAsistencia) {
+    filtrarBuscadorPersona(id);
+  } else if (cont) {
+    cont.classList.add('oculto');
+    cont.innerHTML = '';
+  }
 }
 
 document.addEventListener('click', function (e) {
@@ -238,6 +246,12 @@ function volverAlMenu() { mostrarPantalla('menu'); }
 // EMERGENCIA
 // ============================================================
 
+function obtenerHoraActual() {
+  const ahora = new Date();
+  return String(ahora.getHours()).padStart(2, '0') + ':' +
+    String(ahora.getMinutes()).padStart(2, '0');
+}
+
 let EMERG_ASISTENTES = { honorarios: [], activos: [], confederados: [], aspirantes: [] };
 let EMERG_Mando_COMPANIA = null;
 let EMERG_CONDUCTORES = {};
@@ -267,8 +281,6 @@ function abrirFormularioEmergencia() {
     <div class="filtros">
       <label style="flex:1 1 100px;">Hora inicio
         <input type="text" id="emHoraInicio" inputmode="numeric" maxlength="5" placeholder="HH:MM" oninput="formatearHora24(this)"></label>
-      <label style="flex:1 1 100px;">Hora término
-        <input type="text" id="emHoraTermino" inputmode="numeric" maxlength="5" placeholder="HH:MM" oninput="formatearHora24(this)"></label>
       <label style="flex:1 1 100px;">Hora cierre parte
         <input type="text" id="emHoraCierre" inputmode="numeric" maxlength="5" placeholder="HH:MM" oninput="formatearHora24(this)"></label>
     </div>
@@ -399,7 +411,7 @@ async function guardarEmergencia() {
   msg.textContent = ''; msg.className = 'mensaje';
 
   const requeridos = {
-    emFecha: 'Fecha de inicio', emHoraInicio: 'Hora inicio', emHoraTermino: 'Hora término',
+    emFecha: 'Fecha de inicio', emHoraInicio: 'Hora inicio',
     emHoraCierre: 'Hora cierre parte', emMandoCBPM: 'Mando CBPM',
     emTipoActo: 'Tipo de acto', emDireccion: 'Dirección', emCiudad: 'Ciudad'
   };
@@ -429,7 +441,7 @@ async function guardarEmergencia() {
   );
 
   const payload = {
-    fechaInicio: val('emFecha'), horaInicio: val('emHoraInicio'), horaTermino: val('emHoraTermino'),
+    fechaInicio: val('emFecha'), horaInicio: val('emHoraInicio'), horaTermino: obtenerHoraActual(),
     horaCierre: val('emHoraCierre'), mandoCBPM: val('emMandoCBPM'), mandoCompania: EMERG_Mando_COMPANIA.clave,
     maquinas: (TAGS_TEXTO['emMaquinas'] || []).join(', '), tipoActo: val('emTipoActo'), direccion: val('emDireccion'), ciudad: val('emCiudad'),
     propietarioRut: val('emPropietario'), encargadoRut: val('emEncargado'), contacto: val('emContacto'),
@@ -446,6 +458,9 @@ async function guardarEmergencia() {
 }
 
 async function generarPDFParte(parteId, codigo, msg) {
+  let pdfOk = false;
+  let pdfUrl = null;
+  let errorPDF = null;
   try {
     const { data: payload, error: e1 } = await cliente.rpc('pd_payload_pdf', { p_token: SESION.token, p_id: parteId });
     if (e1) throw new Error(e1.message);
@@ -458,22 +473,46 @@ async function generarPDFParte(parteId, codigo, msg) {
     const resultado = await resp.json();
     if (!resultado.ok) throw new Error(resultado.error || 'Apps Script devolvió un error desconocido');
 
-    await cliente.rpc('pd_actualizar_pdf', {
+    const { error: errorActualizar } = await cliente.rpc('pd_actualizar_pdf', {
       p_token: SESION.token, p_id: parteId, p_estado: 'ok',
       p_slides_url: resultado.slidesUrl, p_pdf_url: resultado.pdfUrl, p_error: null
     });
+    if (errorActualizar) throw new Error('El PDF se generó, pero no se pudo actualizar su estado: ' + errorActualizar.message);
+    pdfOk = true;
+    pdfUrl = resultado.pdfUrl;
     msg.innerHTML = `✅ Parte <strong>${escapeHtml(codigo)}</strong> guardado y PDF generado. ` +
       `<a href="${resultado.pdfUrl}" target="_blank" rel="noopener">Abrir PDF</a>`;
     msg.className = 'mensaje';
   } catch (err) {
-    const texto = String((err && err.message) || err);
-    await cliente.rpc('pd_actualizar_pdf', {
-      p_token: SESION.token, p_id: parteId, p_estado: 'error', p_slides_url: null, p_pdf_url: null, p_error: texto
-    });
-    msg.innerHTML = `⚠️️ El parte <strong>${escapeHtml(codigo)}</strong> quedó guardado, pero el PDF falló: ` +
-      `${escapeHtml(texto)}. Avisa al administrador para generarlo manualmente.`;
+    errorPDF = String((err && err.message) || err);
+    try {
+      const { error: errorActualizar } = await cliente.rpc('pd_actualizar_pdf', {
+        p_token: SESION.token, p_id: parteId, p_estado: 'error', p_slides_url: null, p_pdf_url: null, p_error: errorPDF
+      });
+      if (errorActualizar) console.error('No se pudo actualizar el estado del PDF:', errorActualizar.message);
+    } catch (errorSecundario) {
+      console.error('Error al registrar el fallo del PDF:', errorSecundario);
+    }
+    msg.innerHTML = `⚠️ El parte <strong>${escapeHtml(codigo)}</strong> quedó guardado, pero el PDF falló: ` +
+      `${escapeHtml(errorPDF)}. Avisa al administrador para generarlo manualmente.`;
     msg.className = 'mensaje mensaje-error';
   }
+
+  mostrarResultadoEmergencia(codigo, pdfOk, pdfUrl, errorPDF);
+}
+
+function mostrarResultadoEmergencia(codigo, pdfOk, pdfUrl, errorPDF) {
+  const resumen = document.getElementById('emFinalResumen');
+  const pdf = document.getElementById('emFinalPDF');
+  resumen.textContent = 'El parte ' + codigo + ' se guardó correctamente.';
+  if (pdfOk && pdfUrl) {
+    pdf.innerHTML = 'El PDF también está listo. <a href="' + escapeHtml(pdfUrl) +
+      '" target="_blank" rel="noopener">Abrir parte en PDF</a>';
+  } else {
+    pdf.textContent = 'El parte quedó guardado, pero no se pudo completar el PDF. ' +
+      'Puedes continuar y avisar al administrador para que lo genere. ' + (errorPDF || '');
+  }
+  mostrarPantalla('emergenciaFinal');
 }
 
 // ============================================================
