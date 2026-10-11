@@ -31,6 +31,7 @@
         <span id="rolUsuarioMenu" class="rol-badge"></span>
       </div>
       <div class="topbar-acciones">
+        <span class="version-app" aria-label="Versión del portal">v1.0</span>
         <button class="btn-texto" onclick="cerrarSesionUI()" style="color:#fff;font-weight:bold;">Cerrar Sesión</button>
       </div>
     </header>
@@ -84,7 +85,10 @@
         <p>Si dejas tu sesión iniciada, otra persona podría realizar acciones bajo tu nombre. Esas acciones podrían atribuirse a ti y traerte consecuencias. <strong>Es responsabilidad de cada voluntario cerrar sesión correctamente</strong>, especialmente en equipos de uso público o compartido.</p>
       </section>
       <div class="emergencia-final-acciones">
-        <button class="btn-principal" onclick="cerrarSesionUI()">🔒 Cerrar sesión</button>
+        <div class="emergencia-final-cerrar">
+          <span class="version-app version-app-final" aria-label="Versión del portal">v1.0</span>
+          <button class="btn-principal" onclick="cerrarSesionUI()">🔒 Cerrar sesión</button>
+        </div>
         <button class="btn-secundario emergencia-final-menu" onclick="volverAlMenu()">Volver al menú principal</button>
       </div>
     </main>
@@ -136,6 +140,7 @@
       <div class="topbar-acciones">
         <button class="btn-icono" onclick="volverAlMenu()">← Menú</button>
         <button class="btn-icono" onclick="abrirEscanerQR()" title="Escanear QR">📷 QR</button>
+        <span class="version-app" aria-label="Versión del portal">v1.0</span>
         <button class="btn-texto" onclick="cerrarSesionUI()" style="color: #ffffff; font-weight: bold;">Cerrar Sesión</button>
       </div>
     </header>
