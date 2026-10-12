@@ -58,11 +58,19 @@ function filtrarBuscadorPersona(id) {
 
   const lista = (ctx.lista || []).slice().sort((a, b) =>
     String(a.nombre).localeCompare(String(b.nombre), 'es'));
-  const coincidencias = q
-    ? lista.filter(p => String(p.clave).toLowerCase().includes(q) || String(p.nombre).toLowerCase().includes(q))
-    : lista;
 
-  const cabecera = `<div class="resultados-cabecera">${coincidencias.length} persona(s)${q ? ' encontradas' : ' · desliza para ver más'}</div>`;
+  // En asistencia de emergencia, mostrar solo personas aún no agregadas.
+  // Así se puede seleccionar varias seguidas sin cerrar el desplegable ni duplicar chips.
+  const categoriaAsistencia = id.startsWith('em_') ? id.slice(3) : '';
+  const seleccionadas = ['honorarios', 'activos', 'confederados', 'aspirantes'].includes(categoriaAsistencia)
+    ? new Set((EMERG_ASISTENTES[categoriaAsistencia] || []).map(p => String(p.clave)))
+    : new Set();
+  const disponibles = lista.filter(p => !seleccionadas.has(String(p.clave)));
+  const coincidencias = q
+    ? disponibles.filter(p => String(p.clave).toLowerCase().includes(q) || String(p.nombre).toLowerCase().includes(q))
+    : disponibles;
+
+  const cabecera = `<div class="resultados-cabecera">${coincidencias.length} persona(s) disponible(s)${q ? ' · búsqueda filtrada' : ' · desliza para ver más'}</div>`;
   cont.innerHTML = coincidencias.length
     ? cabecera + coincidencias.map(p =>
         `<div class="resultado-item" onclick="seleccionarBuscadorPersona('${id}','${escapeHtml(p.clave)}')">
@@ -281,8 +289,6 @@ function abrirFormularioEmergencia() {
     <div class="filtros">
       <label style="flex:1 1 100px;">Hora inicio
         <input type="text" id="emHoraInicio" inputmode="numeric" maxlength="5" placeholder="HH:MM" oninput="formatearHora24(this)"></label>
-      <label style="flex:1 1 100px;">Hora cierre parte
-        <input type="text" id="emHoraCierre" inputmode="numeric" maxlength="5" placeholder="HH:MM" oninput="formatearHora24(this)"></label>
     </div>
     <label>Mando CBPM <input id="emMandoCBPM" placeholder="Clave radial"></label>
     <label style="margin-bottom:6px;">Mando Compañía (OBAC)</label>
@@ -412,7 +418,7 @@ async function guardarEmergencia() {
 
   const requeridos = {
     emFecha: 'Fecha de inicio', emHoraInicio: 'Hora inicio',
-    emHoraCierre: 'Hora cierre parte', emMandoCBPM: 'Mando CBPM',
+    emMandoCBPM: 'Mando CBPM',
     emTipoActo: 'Tipo de acto', emDireccion: 'Dirección', emCiudad: 'Ciudad'
   };
   for (const id in requeridos) {
@@ -440,9 +446,11 @@ async function guardarEmergencia() {
     EMERG_ASISTENTES.honorarios, EMERG_ASISTENTES.activos, EMERG_ASISTENTES.confederados, EMERG_ASISTENTES.aspirantes
   );
 
+  // El cierre se registra automáticamente al guardar; no se solicita una segunda hora manual.
+  const horaCierreAutomatica = obtenerHoraActual();
   const payload = {
-    fechaInicio: val('emFecha'), horaInicio: val('emHoraInicio'), horaTermino: obtenerHoraActual(),
-    horaCierre: val('emHoraCierre'), mandoCBPM: val('emMandoCBPM'), mandoCompania: EMERG_Mando_COMPANIA.clave,
+    fechaInicio: val('emFecha'), horaInicio: val('emHoraInicio'), horaTermino: horaCierreAutomatica,
+    horaCierre: horaCierreAutomatica, mandoCBPM: val('emMandoCBPM'), mandoCompania: EMERG_Mando_COMPANIA.clave,
     maquinas: (TAGS_TEXTO['emMaquinas'] || []).join(', '), tipoActo: val('emTipoActo'), direccion: val('emDireccion'), ciudad: val('emCiudad'),
     propietarioRut: val('emPropietario'), encargadoRut: val('emEncargado'), contacto: val('emContacto'),
     observacionesAntecedentes: val('emObsAntecedentes'), materialMayor, bombaInterna,
@@ -512,7 +520,16 @@ function mostrarResultadoEmergencia(codigo, pdfOk, pdfUrl, errorPDF) {
     pdf.textContent = 'El parte quedó guardado, pero no se pudo completar el PDF. ' +
       'Puedes continuar y avisar al administrador para que lo genere. ' + (errorPDF || '');
   }
-  mostrarPantalla('emergenciaFinal');
+  // Mostrar explícitamente la pantalla final, sin depender de construir el ID por nombre.
+  document.querySelectorAll('.pantalla').forEach(pantalla => pantalla.classList.add('oculto'));
+  const pantallaFinal = document.getElementById('pantallaEmergenciaFinal');
+  if (pantallaFinal) {
+    pantallaFinal.classList.remove('oculto');
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  } else {
+    console.error('No existe #pantallaEmergenciaFinal en index.html');
+    alert('El parte se guardó, pero no se encontró la pantalla final. Vuelve al menú y avisa al administrador.');
+  }
 }
 
 // ============================================================
