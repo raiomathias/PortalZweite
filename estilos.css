@@ -528,7 +528,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 
-/* ---------- CONTADOR DE VERSION ---------- */
+/* ---------- CONTADOR DE VERSION (v1.1) ---------- */
 .version-app {
   display: inline-flex;
   align-items: center;
