@@ -70,10 +70,10 @@ function filtrarBuscadorPersona(id) {
     ? disponibles.filter(p => String(p.clave).toLowerCase().includes(q) || String(p.nombre).toLowerCase().includes(q))
     : disponibles;
 
-  const cabecera = `<div class="resultados-cabecera">${coincidencias.length} persona(s) disponible(s)${q ? ' · búsqueda filtrada' : ' · desliza para ver más'}</div>`;
+  const cabecera = `<div class="resultados-cabecera"><span>${coincidencias.length} persona(s) disponible(s)${q ? ' · búsqueda filtrada' : ' · desliza para ver más'}</span><button type="button" class="btn-cerrar-lista" onclick="cerrarListaPersonas('${id}', event)" aria-label="Cerrar lista" title="Cerrar lista">✕</button></div>`;
   cont.innerHTML = coincidencias.length
     ? cabecera + coincidencias.map(p =>
-        `<div class="resultado-item" onclick="seleccionarBuscadorPersona('${id}','${escapeHtml(p.clave)}')">
+        `<div class="resultado-item" onclick="seleccionarBuscadorPersona('${id}','${escapeHtml(p.clave)}', event)">
           ${escapeHtml(p.nombre)} <span class="nota">(${escapeHtml(p.clave)})</span>
         </div>`).join('')
     : '<div class="resultado-item nota">Sin coincidencias.</div>';
@@ -87,7 +87,16 @@ function alternarListaPersonas(id) {
   filtrarBuscadorPersona(id);
 }
 
-function seleccionarBuscadorPersona(id, clave) {
+function cerrarListaPersonas(id, evento) {
+  if (evento) evento.stopPropagation();
+  const cont = document.getElementById('resultados_' + id);
+  if (cont) { cont.classList.add('oculto'); cont.innerHTML = ''; }
+}
+
+function seleccionarBuscadorPersona(id, clave, evento) {
+  // El elemento seleccionado se reemplaza al actualizar la lista; detener la propagación
+  // evita que el clic se interprete como clic exterior y cierre el desplegable.
+  if (evento) evento.stopPropagation();
   const ctx = BUSCADOR_PERSONA_CTX[id];
   if (!ctx) return;
   const persona = (ctx.lista || []).find(p => String(p.clave) === String(clave));
@@ -289,6 +298,8 @@ function abrirFormularioEmergencia() {
     <div class="filtros">
       <label style="flex:1 1 100px;">Hora inicio
         <input type="text" id="emHoraInicio" inputmode="numeric" maxlength="5" placeholder="HH:MM" oninput="formatearHora24(this)"></label>
+      <label style="flex:1 1 100px;">Hora término
+        <input type="text" id="emHoraTermino" inputmode="numeric" maxlength="5" placeholder="HH:MM" oninput="formatearHora24(this)"></label>
     </div>
     <label>Mando CBPM <input id="emMandoCBPM" placeholder="Clave radial"></label>
     <label style="margin-bottom:6px;">Mando Compañía (OBAC)</label>
@@ -417,7 +428,7 @@ async function guardarEmergencia() {
   msg.textContent = ''; msg.className = 'mensaje';
 
   const requeridos = {
-    emFecha: 'Fecha de inicio', emHoraInicio: 'Hora inicio',
+    emFecha: 'Fecha de inicio', emHoraInicio: 'Hora inicio', emHoraTermino: 'Hora término',
     emMandoCBPM: 'Mando CBPM',
     emTipoActo: 'Tipo de acto', emDireccion: 'Dirección', emCiudad: 'Ciudad'
   };
@@ -449,7 +460,7 @@ async function guardarEmergencia() {
   // El cierre se registra automáticamente al guardar; no se solicita una segunda hora manual.
   const horaCierreAutomatica = obtenerHoraActual();
   const payload = {
-    fechaInicio: val('emFecha'), horaInicio: val('emHoraInicio'), horaTermino: horaCierreAutomatica,
+    fechaInicio: val('emFecha'), horaInicio: val('emHoraInicio'), horaTermino: val('emHoraTermino'),
     horaCierre: horaCierreAutomatica, mandoCBPM: val('emMandoCBPM'), mandoCompania: EMERG_Mando_COMPANIA.clave,
     maquinas: (TAGS_TEXTO['emMaquinas'] || []).join(', '), tipoActo: val('emTipoActo'), direccion: val('emDireccion'), ciudad: val('emCiudad'),
     propietarioRut: val('emPropietario'), encargadoRut: val('emEncargado'), contacto: val('emContacto'),
