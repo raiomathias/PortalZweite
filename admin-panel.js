@@ -161,7 +161,7 @@ async function marcarPruebaAdmin(id,valor) {
 
 
 async function regenerarPDFParteAdmin(id) {
-  const codigo = document.querySelector('#modalAdminParte .admin-editor-cabecera h2')?.textContent?.replace(/^Editar\\s*/, '') || ('Parte #' + id);
+  const codigo = document.querySelector('#modalAdminParte .admin-editor-cabecera h2')?.textContent?.replace(/^Editar\s*/, '') || ('Parte #' + id);
   if (!SESION || !SESION.token || !cliente) {
     alert('La sesión no está disponible. Vuelve a iniciar sesión.');
     return;
