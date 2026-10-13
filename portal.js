@@ -1,5 +1,5 @@
 // ============================================================
-// PORTAL ZWEITE - Emergencias / Guardias / Perfil / Admin
+// PORTAL ZWEITE - Emergencias / Guardias / Perfil / Admin · v1.4
 // Depende de app.js: cliente, SESION, DB, val(), escapeHtml()
 // ============================================================
 
@@ -264,9 +264,13 @@ function volverAlMenu() { mostrarPantalla('menu'); }
 // ============================================================
 
 function obtenerHoraActual() {
-  const ahora = new Date();
-  return String(ahora.getHours()).padStart(2, '0') + ':' +
-    String(ahora.getMinutes()).padStart(2, '0');
+  // Hora civil de Chile continental, independiente de la zona horaria del navegador.
+  const partes = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  }).formatToParts(new Date());
+  const hora = partes.find(p => p.type === 'hour')?.value || '00';
+  const minuto = partes.find(p => p.type === 'minute')?.value || '00';
+  return hora + ':' + minuto;
 }
 
 let EMERG_ASISTENTES = { honorarios: [], activos: [], confederados: [], aspirantes: [] };
