@@ -1,4 +1,4 @@
-// PORTAL ZWEITE · Panel administrador de partes · v1.4
+// PORTAL ZWEITE · Panel administrador de partes · v1.5
 // Se carga después de portal.js y amplía/sobrescribe sus vistas de administración.
 function mostrarAdminTab(nombre) {
   if (!SESION || SESION.permisos !== 'Administrador de sistema') { alert('Acceso exclusivo al administrador de sistema.'); return; }
@@ -73,7 +73,7 @@ async function abrirEditorParteAdmin(id) {
    '<div id="apd_resultados_personal" style="max-height:220px;overflow:auto;border:1px solid var(--color-borde);border-radius:8px;margin-bottom:12px;"></div>' +
    '<p class="nota">Se muestra todo el personal disponible; al escribir se filtra por coincidencia parcial. Seleccionar una persona la agrega sin duplicar su clave dentro de la misma categoría.</p><textarea id="apd_asistencia" rows="7" spellcheck="false">'+escapeHtml(asistencia)+'</textarea></section>' +
    '<section class="admin-editor-seccion admin-metadatos"><h3>Documentos y trazabilidad</h3><div class="admin-campos-grid"><div><span class="nota">Creado en</span><strong>'+escapeHtml(p.creado_en||'—')+'</strong></div><div><span class="nota">Estado PDF</span><strong>'+escapeHtml(p.pdf_estado||'pendiente')+'</strong></div><div><span class="nota">PDF</span>'+(p.pdf_url?'<a href="'+escapeHtml(p.pdf_url)+'" target="_blank" rel="noopener noreferrer">Abrir PDF</a>':'Sin archivo')+'</div><div><span class="nota">Presentación</span>'+(p.slides_url?'<a href="'+escapeHtml(p.slides_url)+'" target="_blank" rel="noopener noreferrer">Abrir presentación</a>':'Sin archivo')+'</div>'+(p.pdf_error?'<div class="admin-campo-ancho"><span class="nota">Error PDF</span><p>'+escapeHtml(p.pdf_error)+'</p></div>':'')+(p.legacy?'<div class="admin-campo-ancho"><span class="nota">Datos heredados</span><pre class="admin-legacy">'+escapeHtml(JSON.stringify(p.legacy,null,2))+'</pre></div>':'')+'<div class="admin-campo-ancho"><span class="nota">Guardias asociadas</span><p>'+escapeHtml((data.guardias||[]).map(g=>g.uid).join(', ')||'Sin guardia asociada')+'</p></div></div></section>' +
-  '<p id="adminParteMensaje" class="mensaje" role="status"></p><div class="admin-editor-acciones"><button type="button" class="btn-texto" onclick="cerrarEditorParteAdmin()">Cancelar</button><button type="submit" class="btn-principal" id="btnGuardarAdminParte">Guardar todos los cambios</button></div></form>'
+  '<p id="adminParteMensaje" class="mensaje" role="status"></p><div class="admin-editor-acciones"><button type="button" class="btn-texto" onclick="cerrarEditorParteAdmin()">Cancelar</button><button type="button" class="btn-secundario" id="btnRegenerarPDFAdmin" onclick="regenerarPDFParteAdmin('+Number(p.id)+')">↻ Regenerar PDF</button><button type="submit" class="btn-principal" id="btnGuardarAdminParte">Guardar todos los cambios</button></div></form>'
   iniciarSelectorAsistenciaAdmin();;
 }
 function iniciarSelectorAsistenciaAdmin() {
@@ -157,4 +157,58 @@ async function guardarParteAdmin(evento,id) {
 async function marcarPruebaAdmin(id,valor) {
   const {error}=await cliente.rpc('pd_admin_marcar_prueba',{p_token:SESION.token,p_id:id,p_valor:valor});
   if(error){alert(error.message);return;} cargarAdminEmergencias();
+}
+
+
+async function regenerarPDFParteAdmin(id) {
+  const codigo = document.querySelector('#modalAdminParte .admin-editor-cabecera h2')?.textContent?.replace(/^Editar\\s*/, '') || ('Parte #' + id);
+  if (!SESION || !SESION.token || !cliente) {
+    alert('La sesión no está disponible. Vuelve a iniciar sesión.');
+    return;
+  }
+  if (!confirm('¿Regenerar el PDF de ' + codigo + '? Se utilizarán los datos guardados en la base de datos. Guarda primero cualquier cambio pendiente en el editor.')) return;
+  const boton = document.getElementById('btnRegenerarPDFAdmin');
+  const msg = document.getElementById('adminParteMensaje');
+  const setMensaje = (texto, ok) => {
+    if (!msg) return;
+    msg.textContent = texto;
+    msg.className = ok ? 'mensaje mensaje-ok' : 'mensaje mensaje-error';
+  };
+  if (boton) { boton.disabled = true; boton.textContent = 'Generando PDF…'; }
+  try {
+    const { data: payload, error: errorPayload } = await cliente.rpc('pd_payload_pdf', { p_token: SESION.token, p_id: id });
+    if (errorPayload) throw new Error('No se pudieron preparar los datos del PDF: ' + errorPayload.message);
+    if (!CONFIG || !CONFIG.APPS_SCRIPT_URL || !CONFIG.APPS_SCRIPT_SECRET) throw new Error('Falta la configuración del generador de PDF.');
+    const respuesta = await fetch(CONFIG.APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ secreto: CONFIG.APPS_SCRIPT_SECRET, payload })
+    });
+    let resultado;
+    try { resultado = await respuesta.json(); }
+    catch (_) { throw new Error('El generador de PDF devolvió una respuesta no válida (HTTP ' + respuesta.status + ').'); }
+    if (!respuesta.ok || !resultado || !resultado.ok) throw new Error((resultado && resultado.error) || ('El generador de PDF respondió HTTP ' + respuesta.status + '.'));
+    const { error: errorActualizar } = await cliente.rpc('pd_actualizar_pdf', {
+      p_token: SESION.token, p_id: id, p_estado: 'ok',
+      p_slides_url: resultado.slidesUrl || null, p_pdf_url: resultado.pdfUrl || null, p_error: null
+    });
+    if (errorActualizar) throw new Error('El PDF se generó, pero no se pudo actualizar su estado en el sistema: ' + errorActualizar.message);
+    setMensaje('PDF regenerado correctamente para ' + codigo + '.', true);
+    const docs = document.querySelector('#modalAdminParte .admin-metadatos');
+    if (docs) {
+      const cajas = Array.from(docs.querySelectorAll('.admin-campos-grid > div'));
+      const estado = cajas.find(el => el.querySelector('.nota')?.textContent?.trim() === 'Estado PDF');
+      if (estado) estado.innerHTML = '<span class="nota">Estado PDF</span><strong>ok</strong>';
+      const pdfBox = cajas.find(el => el.querySelector('.nota')?.textContent?.trim() === 'PDF');
+      if (pdfBox) pdfBox.innerHTML = '<span class="nota">PDF</span>' + (resultado.pdfUrl ? '<a href="' + escapeHtml(resultado.pdfUrl) + '" target="_blank" rel="noopener noreferrer">Abrir PDF</a>' : 'Sin archivo');
+      const slidesBox = cajas.find(el => el.querySelector('.nota')?.textContent?.trim() === 'Presentación');
+      if (slidesBox) slidesBox.innerHTML = '<span class="nota">Presentación</span>' + (resultado.slidesUrl ? '<a href="' + escapeHtml(resultado.slidesUrl) + '" target="_blank" rel="noopener noreferrer">Abrir presentación</a>' : 'Sin archivo');
+    }
+    await cargarAdminEmergencias();
+  } catch (err) {
+    setMensaje('No se pudo regenerar el PDF: ' + String((err && err.message) || err), false);
+    console.error('Error al regenerar PDF desde administración:', err);
+  } finally {
+    if (boton) { boton.disabled = false; boton.textContent = '↻ Regenerar PDF'; }
+  }
 }
