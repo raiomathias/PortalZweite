@@ -1,4 +1,4 @@
-// PORTAL ZWEITE · Panel administrador de partes · v1.3
+// PORTAL ZWEITE · Panel administrador de partes · v1.4
 // Se carga después de portal.js y amplía/sobrescribe sus vistas de administración.
 function mostrarAdminTab(nombre) {
   if (!SESION || SESION.permisos !== 'Administrador de sistema') { alert('Acceso exclusivo al administrador de sistema.'); return; }
@@ -68,9 +68,56 @@ async function abrirEditorParteAdmin(id) {
   '<section class="admin-editor-seccion"><h3>Mando, ubicación y clasificación</h3><div class="admin-campos-grid">'+adminCampoParte('mando_cbpm','Mando CBPM',p.mando_cbpm)+adminCampoParte('mando_compania','Mando de compañía',p.mando_compania)+adminCampoParte('maquinas_concurrentes','Máquinas concurrentes (separadas por coma)',p.maquinas_concurrentes)+adminCampoParte('tipo_acto','Tipo de acto',p.tipo_acto)+adminCampoParte('direccion','Dirección',p.direccion)+adminCampoParte('ciudad','Ciudad',p.ciudad)+adminCampoParte('propietario_rut','RUT propietario',p.propietario_rut)+adminCampoParte('encargado_rut','RUT encargado',p.encargado_rut)+adminCampoParte('contacto','Contacto',p.contacto)+'</div></section>' +
   '<section class="admin-editor-seccion"><h3>Antecedentes y recursos</h3><div class="admin-campos-grid">'+adminAreaParte('observaciones_antecedentes','Antecedentes y observaciones',p.observaciones_antecedentes)+adminCampoParte('material_mayor','Material mayor (separado por coma)',(p.material_mayor||[]).join(', '))+adminCampoParte('bomba_interna','Bomba interna (separada por coma)',(p.bomba_interna||[]).join(', '))+adminAreaParte('observaciones_material_mayor','Observaciones de material mayor',p.observaciones_material_mayor)+'</div></section>' +
   '<section class="admin-editor-seccion"><h3>Unidades participantes</h3><p class="nota">Una unidad por línea: Unidad | Conductor | KM salida | KM regreso | Bomba interna (sí/no) | Material menor. Unidades válidas: B-2, HX-2, H-2.</p><textarea id="apd_unidades" rows="5" spellcheck="false">'+escapeHtml(unidades)+'</textarea></section>' +
-  '<section class="admin-editor-seccion"><h3>Asistencia</h3><p class="nota">Una persona por línea: Clave | Nombre completo | Categoría. Categorías válidas: activos, honorarios, confederados, aspirantes.</p><textarea id="apd_asistencia" rows="7" spellcheck="false">'+escapeHtml(asistencia)+'</textarea></section>' +
-  '<section class="admin-editor-seccion admin-metadatos"><h3>Documentos y trazabilidad</h3><div class="admin-campos-grid"><div><span class="nota">Creado en</span><strong>'+escapeHtml(p.creado_en||'—')+'</strong></div><div><span class="nota">Estado PDF</span><strong>'+escapeHtml(p.pdf_estado||'pendiente')+'</strong></div><div><span class="nota">PDF</span>'+(p.pdf_url?'<a href="'+escapeHtml(p.pdf_url)+'" target="_blank" rel="noopener noreferrer">Abrir PDF</a>':'Sin archivo')+'</div><div><span class="nota">Presentación</span>'+(p.slides_url?'<a href="'+escapeHtml(p.slides_url)+'" target="_blank" rel="noopener noreferrer">Abrir presentación</a>':'Sin archivo')+'</div>'+(p.pdf_error?'<div class="admin-campo-ancho"><span class="nota">Error PDF</span><p>'+escapeHtml(p.pdf_error)+'</p></div>':'')+(p.legacy?'<div class="admin-campo-ancho"><span class="nota">Datos heredados</span><pre class="admin-legacy">'+escapeHtml(JSON.stringify(p.legacy,null,2))+'</pre></div>':'')+'<div class="admin-campo-ancho"><span class="nota">Guardias asociadas</span><p>'+escapeHtml((data.guardias||[]).map(g=>g.uid).join(', ')||'Sin guardia asociada')+'</p></div></div></section>' +
-  '<p id="adminParteMensaje" class="mensaje" role="status"></p><div class="admin-editor-acciones"><button type="button" class="btn-texto" onclick="cerrarEditorParteAdmin()">Cancelar</button><button type="submit" class="btn-principal" id="btnGuardarAdminParte">Guardar todos los cambios</button></div></form>';
+  '<section class="admin-editor-seccion"><h3>Asistencia</h3><p class="nota">Agrega personas desde el directorio completo buscando por clave radial o por una parte del nombre. También puedes corregir la lista manualmente abajo.</p>' +
+   '<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(140px,220px);gap:8px;margin:10px 0;"><input id="apd_buscar_personal" type="search" placeholder="Buscar clave radial o nombre..." autocomplete="off" aria-label="Buscar personal para asistencia"><select id="apd_categoria_nueva" aria-label="Categoría de asistencia"><option value="activos">Activos</option><option value="honorarios">Honorarios</option><option value="confederados">Confederados / canje</option><option value="aspirantes">Aspirantes</option></select></div>' +
+   '<div id="apd_resultados_personal" style="max-height:220px;overflow:auto;border:1px solid var(--color-borde);border-radius:8px;margin-bottom:12px;"></div>' +
+   '<p class="nota">Se muestra todo el personal disponible; al escribir se filtra por coincidencia parcial. Seleccionar una persona la agrega sin duplicar su clave dentro de la misma categoría.</p><textarea id="apd_asistencia" rows="7" spellcheck="false">'+escapeHtml(asistencia)+'</textarea></section>' +
+   '<section class="admin-editor-seccion admin-metadatos"><h3>Documentos y trazabilidad</h3><div class="admin-campos-grid"><div><span class="nota">Creado en</span><strong>'+escapeHtml(p.creado_en||'—')+'</strong></div><div><span class="nota">Estado PDF</span><strong>'+escapeHtml(p.pdf_estado||'pendiente')+'</strong></div><div><span class="nota">PDF</span>'+(p.pdf_url?'<a href="'+escapeHtml(p.pdf_url)+'" target="_blank" rel="noopener noreferrer">Abrir PDF</a>':'Sin archivo')+'</div><div><span class="nota">Presentación</span>'+(p.slides_url?'<a href="'+escapeHtml(p.slides_url)+'" target="_blank" rel="noopener noreferrer">Abrir presentación</a>':'Sin archivo')+'</div>'+(p.pdf_error?'<div class="admin-campo-ancho"><span class="nota">Error PDF</span><p>'+escapeHtml(p.pdf_error)+'</p></div>':'')+(p.legacy?'<div class="admin-campo-ancho"><span class="nota">Datos heredados</span><pre class="admin-legacy">'+escapeHtml(JSON.stringify(p.legacy,null,2))+'</pre></div>':'')+'<div class="admin-campo-ancho"><span class="nota">Guardias asociadas</span><p>'+escapeHtml((data.guardias||[]).map(g=>g.uid).join(', ')||'Sin guardia asociada')+'</p></div></div></section>' +
+  '<p id="adminParteMensaje" class="mensaje" role="status"></p><div class="admin-editor-acciones"><button type="button" class="btn-texto" onclick="cerrarEditorParteAdmin()">Cancelar</button><button type="submit" class="btn-principal" id="btnGuardarAdminParte">Guardar todos los cambios</button></div></form>'
+  iniciarSelectorAsistenciaAdmin();;
+}
+function iniciarSelectorAsistenciaAdmin() {
+  const buscar = document.getElementById('apd_buscar_personal');
+  const resultados = document.getElementById('apd_resultados_personal');
+  if (!buscar || !resultados) return;
+  const directorio = Array.isArray(DB?.directorio?.todos) ? DB.directorio.todos : [];
+  const render = () => {
+    const q = buscar.value.trim().toLocaleLowerCase('es');
+    const coincidencias = directorio.filter(p =>
+      String(p.clave || '').toLocaleLowerCase('es').includes(q) ||
+      String(p.nombre || '').toLocaleLowerCase('es').includes(q)
+    ).sort((a,b) => String(a.nombre || '').localeCompare(String(b.nombre || ''), 'es'));
+    if (!directorio.length) { resultados.innerHTML = '<p class="nota" style="padding:10px;">No se pudo cargar el directorio. Vuelve al menú y abre nuevamente Administración.</p>'; return; }
+    if (!coincidencias.length) { resultados.innerHTML = '<p class="nota" style="padding:10px;">No hay coincidencias.</p>'; return; }
+    resultados.innerHTML = coincidencias.map(p =>
+      '<button type="button" data-clave="' + escapeHtml(String(p.clave || '')) +
+      '" style="display:flex;width:100%;text-align:left;justify-content:space-between;gap:10px;padding:9px 10px;border:0;border-bottom:1px solid var(--color-borde);background:var(--color-tarjeta);color:var(--color-texto);cursor:pointer;">' +
+      '<span>' + escapeHtml(String(p.nombre || 'Sin nombre')) + '</span><strong>' + escapeHtml(String(p.clave || 'Sin clave')) + '</strong></button>'
+    ).join('');
+    resultados.querySelectorAll('button[data-clave]').forEach(btn => btn.addEventListener('click', () => {
+      const clave = btn.dataset.clave;
+      const persona = directorio.find(p => String(p.clave || '') === clave);
+      if (!persona) return;
+      const categoria = document.getElementById('apd_categoria_nueva').value;
+      const textarea = document.getElementById('apd_asistencia');
+      const lineas = String(textarea.value || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+      const yaExiste = lineas.some(linea => {
+        const partes = linea.split('|').map(s => s.trim());
+        return partes[0] === clave && (partes[2] || 'activos').toLowerCase() === categoria;
+      });
+      if (yaExiste) {
+        const msg = document.getElementById('adminParteMensaje');
+        if (msg) { msg.textContent = 'Esa persona ya está agregada en la categoría seleccionada.'; msg.className = 'mensaje mensaje-error'; }
+        return;
+      }
+      lineas.push([clave, String(persona.nombre || '').replace(/[|\r\n]/g, ' '), categoria].join(' | '));
+      textarea.value = lineas.join('\n');
+      const msg = document.getElementById('adminParteMensaje');
+      if (msg) { msg.textContent = 'Persona agregada a ' + categoria + '. Recuerda guardar los cambios del parte.'; msg.className = 'mensaje mensaje-ok'; }
+    }));
+  };
+  buscar.addEventListener('input', render);
+  render();
 }
 function cerrarEditorParteAdmin() { const m=document.getElementById('modalAdminParte'); if(m)m.classList.add('oculto'); }
 function parsearLineasAdmin(texto,tipo) {
