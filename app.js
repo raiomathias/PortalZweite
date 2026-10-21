@@ -97,9 +97,23 @@ function iniciarApp() {
 // ---------------- TABS ----------------
 
 function mostrarTab(nombre) {
-  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('activo', b.dataset.tab === nombre));
-  document.querySelectorAll('.vista').forEach(v => v.classList.add('oculto'));
-  document.getElementById('vista' + nombre.charAt(0).toUpperCase() + nombre.slice(1)).classList.remove('oculto');
+  // Las pestañas pertenecen únicamente a la pantalla de inventario.
+  // No ocultar .vista de otras pantallas (Emergencia, Guardia, Perfil):
+  // hacerlo dejaba esas pantallas en blanco al volver al menú y abrirlas.
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  app.querySelectorAll('.tabs [data-tab]').forEach(b =>
+    b.classList.toggle('activo', b.dataset.tab === nombre)
+  );
+  app.querySelectorAll('.vista').forEach(v => v.classList.add('oculto'));
+
+  const vista = document.getElementById('vista' + nombre.charAt(0).toUpperCase() + nombre.slice(1));
+  if (!vista || !app.contains(vista)) {
+    console.error('No se encontró la vista de inventario:', nombre);
+    return;
+  }
+  vista.classList.remove('oculto');
 
   if (nombre === 'mapa') inicializarMapaCarro();
   if (nombre === 'inventario') renderInventario();
