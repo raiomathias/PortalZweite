@@ -1,10 +1,10 @@
 :root {
-  --color-primario: #7c2d3d;
-  --color-primario-oscuro: #5a1f2b;
-  --color-fondo: #f5f2f0;
+  --color-primario: #5aa9e6;
+  --color-primario-oscuro: #3182c4;
+  --color-fondo: #f0f8ff;
   --color-tarjeta: #ffffff;
-  --color-texto: #262223;
-  --color-borde: #e0d8d5;
+  --color-texto: #1e293b;
+  --color-borde: #d4e7f5;
   --color-error: #b3261e;
   --color-ok: #2e7d32;
   font-size: 16px;
@@ -192,11 +192,11 @@ form label { display: block; margin-bottom: 10px; font-size: 0.85rem; color: #55
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --color-fondo: #1c1517; --color-tarjeta: #2a2022;
-    --color-texto: #f2e9e7; --color-borde: #3a2f31;
+    --color-fondo: #101d2b; --color-tarjeta: #1c2b3c;
+    --color-texto: #f2e9e7; --color-borde: #31465b;
   }
-  input, select, textarea { background: #241b1d; color: var(--color-texto); }
-  .tabs { background: #241b1d; }
+  input, select, textarea { background: #182638; color: var(--color-texto); }
+  .tabs { background: #182638; }
 }
 
 /* Contenedor de la auditoría */
@@ -333,7 +333,7 @@ form label { display: block; margin-bottom: 10px; font-size: 0.85rem; color: #55
 }
 .mapa-bloque-item:hover {
   border-color: var(--color-primario);
-  background: rgba(124, 45, 61, 0.08);
+  background: rgba(90, 169, 230, 0.12);
   color: var(--color-primario);
 }
 /* ---------- NIVELES DE CARGA ---------- */
@@ -350,7 +350,7 @@ form label { display: block; margin-bottom: 10px; font-size: 0.85rem; color: #55
 }
 .resultado-item { padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--color-borde); }
 .resultado-item:last-child { border-bottom: none; }
-.resultado-item:hover, .resultado-item:active { background: rgba(124,45,61,0.08); }
+.resultado-item:hover, .resultado-item:active { background: rgba(90,169,230,0.12); }
 .persona-elegida {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
   background: var(--color-tarjeta); border: 1px solid var(--color-borde);
@@ -362,7 +362,7 @@ form label { display: block; margin-bottom: 10px; font-size: 0.85rem; color: #55
 .tags-contenedor { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
 .tag-chip {
   display: inline-flex; align-items: center; gap: 6px;
-  background: rgba(124,45,61,0.1); color: var(--color-primario);
+  background: rgba(90,169,230,0.16); color: var(--color-primario);
   border-radius: 999px; padding: 5px 10px; font-size: 0.85rem; font-weight: 600;
 }
 .tag-chip .quitar { cursor: pointer; font-weight: 800; }
@@ -396,7 +396,7 @@ form label { display: block; margin-bottom: 10px; font-size: 0.85rem; color: #55
   color: var(--color-texto); cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
   transition: all 0.15s ease; text-align: left;
 }
-.menu-card:active { transform: scale(0.98); background: rgba(124,45,61,0.06); }
+.menu-card:active { transform: scale(0.98); background: rgba(90,169,230,0.10); }
 .menu-card-icono { font-size: 1.6rem; }
 
 /* ---------- TEXTAREAS (observaciones) ---------- */
@@ -425,7 +425,7 @@ input:focus, select:focus, textarea:focus {
   background: var(--color-tarjeta); color: var(--color-primario);
   font-weight: 700; font-size: 0.85rem; cursor: pointer;
 }
-.btn-lista-personas:active { background: rgba(124,45,61,0.08); }
+.btn-lista-personas:active { background: rgba(90,169,230,0.12); }
 .resultados-busqueda { max-height: 260px; -webkit-overflow-scrolling: touch; }
 .resultados-cabecera {
   position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px;
@@ -437,7 +437,7 @@ input:focus, select:focus, textarea:focus {
   border-radius: 7px; background: var(--color-tarjeta); color: var(--color-primario);
   font-size: 1rem; font-weight: 800; line-height: 1; cursor: pointer;
 }
-.btn-cerrar-lista:active { background: rgba(124,45,61,0.12); }
+.btn-cerrar-lista:active { background: rgba(90,169,230,0.18); }
 
 /* ---------- CLASIFICACION / PODIO AUTOMOVILISTICO ---------- */
 .avatar {
@@ -451,7 +451,7 @@ input:focus, select:focus, textarea:focus {
 .gp-titulo { margin: 22px 0 8px; }
 .gp-card {
   position: relative; overflow: hidden; color: #fff;
-  background: linear-gradient(160deg, #1a1315 0%, #2c1a20 100%);
+  background: linear-gradient(160deg, #14283b 0%, #244563 100%);
   border-radius: 16px; padding: 26px 10px 0; margin-bottom: 10px;
   box-shadow: 0 6px 18px rgba(0,0,0,0.25);
 }
@@ -461,7 +461,7 @@ input:focus, select:focus, textarea:focus {
 }
 .gp-card::after {
   content: ""; position: absolute; top: 10px; left: 0; right: 0; height: 3px;
-  background: linear-gradient(90deg, #e10600, #ff5a3c, #e10600);
+  background: linear-gradient(90deg, #5aa9e6, #a5d8ff, #5aa9e6);
 }
 .gp-podio { display: flex; align-items: flex-end; gap: 6px; }
 .gp-slot { flex: 1 1 0; min-width: 0; text-align: center; }
@@ -499,11 +499,11 @@ input:focus, select:focus, textarea:focus {
 .gp-detalle { font-size: 0.75rem; color: #888; }
 .gp-total { flex: none; text-align: right; font-weight: 800; font-size: 1.05rem; }
 .gp-total small { display: block; font-weight: 500; font-size: 0.65rem; color: #888; }
-.gp-yo { border-color: var(--color-primario); border-left-color: #e10600; box-shadow: 0 0 0 2px rgba(124,45,61,0.25); }
-.gp-yo .gp-nombre::after { content: " · TÚ"; color: #e10600; font-size: 0.7rem; }
+.gp-yo { border-color: var(--color-primario); border-left-color: #5aa9e6; box-shadow: 0 0 0 2px rgba(124,45,61,0.25); }
+.gp-yo .gp-nombre::after { content: " · TÚ"; color: #8bcaff; font-size: 0.7rem; }
 .gp-hueco { font-size: 0.82rem; color: #888; text-align: center; padding: 8px; border: 1px dashed var(--color-borde); border-radius: 10px; }
 .gp-cam {
-  flex: none; border: none; background: rgba(124,45,61,0.12); border-radius: 50%;
+  flex: none; border: none; background: rgba(90,169,230,0.18); border-radius: 50%;
   width: 28px; height: 28px; cursor: pointer; font-size: 0.8rem; padding: 0;
 }
 .gp-card .gp-cam { background: rgba(255,255,255,0.18); position: absolute; margin: -6px 0 0 -4px; }
