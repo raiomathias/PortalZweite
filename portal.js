@@ -344,7 +344,7 @@ function abrirFormularioEmergencia() {
     ${tplAsistenciaBloque('confederados', 'Canje y participantes')}
     ${tplAsistenciaBloque('aspirantes', 'Aspirantes')}
 
-    <button class="btn-principal" onclick="guardarEmergencia()" style="margin-top:16px;">Guardar y generar parte en PDF</button>
+    <button id="btnGuardarEmergencia" type="button" class="btn-principal" onclick="guardarEmergencia()" style="margin-top:16px;">Guardar y generar parte en PDF</button>
     <p id="emMensaje" class="mensaje"></p>
   `;
 
@@ -426,7 +426,10 @@ function renderUnidadesEmergencia() {
   }
 }
 
+let GUARDANDO_EMERGENCIA = false;
+
 async function guardarEmergencia() {
+  if (GUARDANDO_EMERGENCIA) return;
   confirmarTagTexto('emMaquinas');
   const msg = document.getElementById('emMensaje');
   msg.textContent = ''; msg.className = 'mensaje';
@@ -472,12 +475,26 @@ async function guardarEmergencia() {
     observacionesMaterialMayor: val('emObsMatMayor'), unidades, asistentes
   };
 
-  msg.textContent = 'Guardando...';
-  const { data, error } = await cliente.rpc('pd_guardar_emergencia', { p_token: SESION.token, p_datos: payload });
-  if (error) { msg.textContent = error.message; msg.className = 'mensaje mensaje-error'; return; }
-
-  msg.textContent = `Parte ${data.codigo} guardado. Generando PDF...`;
-  await generarPDFParte(data.id, data.codigo, msg);
+  const btnGuardar = document.getElementById('btnGuardarEmergencia');
+  GUARDANDO_EMERGENCIA = true;
+  if (btnGuardar) { btnGuardar.disabled = true; btnGuardar.dataset.textoOriginal = btnGuardar.textContent; btnGuardar.textContent = 'Guardando...'; }
+  msg.textContent = 'Guardando parte...';
+  msg.className = 'mensaje';
+  try {
+    const { data, error } = await cliente.rpc('pd_guardar_emergencia', { p_token: SESION.token, p_datos: payload });
+    if (error) {
+      GUARDANDO_EMERGENCIA = false;
+      if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = btnGuardar.dataset.textoOriginal || 'Guardar y generar parte en PDF'; }
+      msg.textContent = error.message; msg.className = 'mensaje mensaje-error'; return;
+    }
+    msg.textContent = `Parte ${data.codigo} guardado. Generando PDF...`;
+    if (btnGuardar) btnGuardar.textContent = 'Parte guardado';
+    await generarPDFParte(data.id, data.codigo, msg);
+  } catch (err) {
+    msg.textContent = 'No se pudo confirmar el resultado del guardado. No vuelvas a enviar el formulario; verifica primero si el parte quedó registrado. ' + ((err && err.message) || err);
+    msg.className = 'mensaje mensaje-error';
+    if (btnGuardar) btnGuardar.textContent = 'Verificar guardado';
+  }
 }
 
 async function generarPDFParte(parteId, codigo, msg) {
@@ -601,7 +618,7 @@ function abrirFormularioGuardia() {
 
     <label>Observaciones generales de la guardia <textarea id="guObservaciones" rows="2"></textarea></label>
 
-    <button class="btn-principal" onclick="guardarGuardia()" style="margin-top:16px;">Guardar guardia</button>
+    <button id="btnGuardarGuardia" type="button" class="btn-principal" onclick="guardarGuardia()" style="margin-top:16px;">Guardar guardia</button>
     <p id="guMensaje" class="mensaje"></p>
   `;
 
@@ -780,7 +797,10 @@ function renderListaIntegrantesGuardia() {
     </div>`).join('');
 }
 
+let GUARDANDO_GUARDIA = false;
+
 async function guardarGuardia() {
+  if (GUARDANDO_GUARDIA) return;
   const msg = document.getElementById('guMensaje');
   msg.textContent = ''; msg.className = 'mensaje';
 
@@ -808,7 +828,11 @@ async function guardarGuardia() {
     parteIds
   };
 
+  const btnGuardar = document.getElementById('btnGuardarGuardia');
+  GUARDANDO_GUARDIA = true;
+  if (btnGuardar) { btnGuardar.disabled = true; btnGuardar.dataset.textoOriginal = btnGuardar.textContent; btnGuardar.textContent = 'Guardando...'; }
   msg.textContent = 'Guardando...';
+  try {
   const { data, error } = await cliente.rpc('pd_guardar_guardia', { p_token: SESION.token, p_datos: payload });
   if (error) {
     msg.textContent = error.message.includes('CONFLICTO')
@@ -820,6 +844,13 @@ async function guardarGuardia() {
   GUARDIA_ACTUAL = { id: data.id, version: data.version };
   msg.textContent = `Guardia ${data.uid} guardada correctamente (v${data.version}).`;
   msg.className = 'mensaje';
+  } catch (err) {
+    msg.textContent = 'No se pudo confirmar el resultado del guardado. Recarga la guardia antes de volver a enviarla. ' + ((err && err.message) || err);
+    msg.className = 'mensaje mensaje-error';
+  } finally {
+    GUARDANDO_GUARDIA = false;
+    if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = btnGuardar.dataset.textoOriginal || 'Guardar guardia'; }
+  }
 }
 
 // ============================================================
