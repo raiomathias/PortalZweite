@@ -659,8 +659,10 @@ function cerrarModalBitacora() {
   ITEM_BITACORA_EN_EDICION = null;
 }
 
+let GUARDANDO_BITACORA = false;
+
 async function guardarBitacoraUI() {
-  if (!ITEM_BITACORA_EN_EDICION) return;
+  if (!ITEM_BITACORA_EN_EDICION || GUARDANDO_BITACORA) return;
 
   const fechaReg = val('biFechaRegistro');
   if (!fechaReg) {
@@ -696,8 +698,13 @@ async function guardarBitacoraUI() {
   };
 
   const msg = document.getElementById('bitacoraMensaje');
+  const btnGuardar = document.getElementById('btnGuardarBitacora');
+  GUARDANDO_BITACORA = true;
+  if (btnGuardar) { btnGuardar.disabled = true; btnGuardar.dataset.textoOriginal = btnGuardar.textContent; btnGuardar.textContent = 'Guardando...'; }
   msg.textContent = 'Guardando registro histórico...';
+  msg.className = 'mensaje';
 
+  try {
   const { data, error } = await cliente.rpc('registrar_bitacora', {
     p_token: SESION.token, 
     p_uid: ITEM_BITACORA_EN_EDICION.uid_inventario, 
@@ -721,6 +728,13 @@ async function guardarBitacoraUI() {
     renderBitacora();
     renderCargas();
   }, 1000);
+  } catch (err) {
+    msg.textContent = 'No se pudo confirmar el resultado. Revisa el historial antes de volver a registrar para evitar duplicados. ' + ((err && err.message) || err);
+    msg.className = 'mensaje mensaje-error';
+  } finally {
+    GUARDANDO_BITACORA = false;
+    if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = btnGuardar.dataset.textoOriginal || 'Guardar nuevo registro'; }
+  }
 }
 
 async function abrirHistorialBitacora() {
