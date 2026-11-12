@@ -44,7 +44,7 @@ async function cargarAdminEmergencias() {
   if (!partes.length) { lista.innerHTML = '<div class="admin-vacio"><strong>No hay partes que coincidan</strong><p>Prueba otras fechas o limpia los filtros.</p></div>'; return; }
   lista.innerHTML = partes.map(p => {
     const mat = Array.isArray(p.material_mayor) ? p.material_mayor : [];
-    return '<article class="admin-parte-card"><div class="admin-parte-principal"><div class="admin-parte-titulo"><strong>' + escapeHtml(p.codigo || ('Parte #' + p.id)) + '</strong><span class="badge ' + (p.es_prueba ? 'badge-warning':'badge-success') + '">' + (p.es_prueba?'PRUEBA':'REAL') + '</span><span class="badge ' + (p.pdf_estado==='ok'?'badge-success':p.pdf_estado==='error'?'badge-danger':'badge-warning') + '">PDF: ' + escapeHtml(p.pdf_estado || 'sin estado') + '</span></div><div class="admin-parte-datos"><span><b>Fecha:</b> ' + escapeHtml((p.fecha_inicio ? formatearFecha(p.fecha_inicio) : 'Sin fecha') + ' ' + (p.hora_inicio || '').slice(0,5)) + '</span><span><b>Acto:</b> ' + escapeHtml(p.tipo_acto || 'Sin especificar') + '</span><span><b>Ubicación:</b> ' + escapeHtml([p.direccion,p.ciudad].filter(Boolean).join(', ') || 'Sin ubicación') + '</span><span><b>Reportante:</b> ' + escapeHtml(p.reportado_por_nombre || p.reportado_por || 'Sin reportante') + '</span><span><b>Material mayor:</b> ' + escapeHtml(mat.join(', ') || 'No indicado') + '</span></div></div><div class="admin-parte-acciones"><button class="btn-secundario" onclick="abrirEditorParteAdmin(' + Number(p.id) + ')">Ver y editar ficha completa →</button><button class="btn-texto" onclick="marcarPruebaAdmin(' + Number(p.id) + ', ' + (!p.es_prueba) + ')">' + (p.es_prueba ? 'Marcar como real':'Marcar como prueba') + '</button></div></article>';
+    return '<article class="admin-parte-card"><div class="admin-parte-principal"><div class="admin-parte-titulo"><strong>' + escapeHtml(p.codigo || ('Parte #' + p.id)) + '</strong><span class="badge ' + (p.es_prueba ? 'badge-warning':'badge-success') + '">' + (p.es_prueba?'PRUEBA':'REAL') + '</span><span class="badge ' + (p.pdf_estado==='ok'?'badge-success':p.pdf_estado==='error'?'badge-danger':'badge-warning') + '">PDF: ' + escapeHtml(p.pdf_estado || 'sin estado') + '</span></div><div class="admin-parte-datos"><span><b>Fecha:</b> ' + escapeHtml((p.fecha_inicio ? formatearFecha(p.fecha_inicio) : 'Sin fecha') + ' ' + (p.hora_inicio || '').slice(0,5)) + '</span><span><b>Acto:</b> ' + escapeHtml(p.tipo_acto || 'Sin especificar') + '</span><span><b>Ubicación:</b> ' + escapeHtml([p.direccion,p.ciudad].filter(Boolean).join(', ') || 'Sin ubicación') + '</span><span><b>Reportante:</b> ' + escapeHtml(p.reportado_por_nombre || p.reportado_por || 'Sin reportante') + '</span><span><b>Material mayor:</b> ' + escapeHtml(mat.join(', ') || 'No indicado') + '</span></div></div><div class="admin-parte-acciones"><button class="btn-secundario" onclick="abrirEditorParteAdmin(' + Number(p.id) + ')">Ver y editar ficha completa →</button><button class="btn-texto" onclick="marcarPruebaAdmin(' + Number(p.id) + ', ' + (!p.es_prueba) + ')">' + (p.es_prueba ? 'Marcar como real':'Marcar como prueba') + '</button><button class="btn-texto" style="color:var(--color-error,#b42318)" onclick="eliminarParteAdmin(' + Number(p.id) + ')">Eliminar parte</button></div></article>';
   }).join('');
 }
 function adminCampoParte(k,label,value,type) {
@@ -154,6 +154,46 @@ async function guardarParteAdmin(evento,id) {
   finally{boton.disabled=false;boton.textContent='Guardar todos los cambios';}
   return false;
 }
+async function eliminarParteAdmin(id) {
+  if (!SESION || SESION.permisos !== 'Administrador de sistema') return;
+  const {data: ficha, error: errorFicha} = await cliente.rpc('pd_admin_obtener_parte',{p_token:SESION.token,p_id:Number(id)});
+  if(errorFicha || !ficha?.parte) { mostrarAvisoEliminarParte('No se pudo verificar el parte antes de eliminarlo.'); return; }
+  const codigo = ficha.parte.codigo || ('Parte #' + id);
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;inset:0;z-index:10050;background:rgba(15,23,42,.58);display:grid;place-items:center;padding:20px;';
+  const dialog=document.createElement('div');
+  dialog.setAttribute('role','dialog');dialog.setAttribute('aria-modal','true');
+  dialog.style.cssText='width:min(460px,100%);background:var(--color-tarjeta,#fff);color:var(--color-texto,#172033);border:1px solid var(--color-borde,#d7dce5);border-radius:14px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.28);';
+  const h=document.createElement('h3');h.textContent='Eliminar '+codigo;
+  const p=document.createElement('p');p.textContent='Se eliminará definitivamente el parte y sus unidades, asistencia y guardias asociadas. La operación se sincronizará con Google Sheets mediante el webhook.';
+  const warn=document.createElement('p');warn.className='nota';warn.textContent='Esta acción no se puede deshacer.';
+  const actions=document.createElement('div');actions.style.cssText='display:flex;justify-content:flex-end;gap:10px;margin-top:22px;flex-wrap:wrap;';
+  const cancel=document.createElement('button');cancel.type='button';cancel.className='btn-secundario';cancel.textContent='Cancelar';
+  const remove=document.createElement('button');remove.type='button';remove.className='btn-principal';remove.style.cssText='background:#b42318;border-color:#b42318;';remove.textContent='Eliminar definitivamente';
+  actions.append(cancel,remove);dialog.append(h,p,warn,actions);overlay.append(dialog);document.body.append(overlay);
+  const close=()=>{document.removeEventListener('keydown',keyHandler);overlay.remove();};
+  const keyHandler=e=>{if(e.key==='Escape')close();};
+  cancel.addEventListener('click',close);overlay.addEventListener('click',e=>{if(e.target===overlay)close();});document.addEventListener('keydown',keyHandler);
+  remove.addEventListener('click',async()=>{
+    remove.disabled=true;cancel.disabled=true;remove.textContent='Eliminando…';
+    try{
+      const {data,error}=await cliente.rpc('pd_admin_eliminar_parte',{p_token:SESION.token,p_id:Number(id)});
+      if(error)throw new Error(error.message);
+      if(!data||data.ok!==true)throw new Error('La base de datos no confirmó la eliminación.');
+      close();await cargarAdminEmergencias();
+      mostrarAvisoEliminarParte(codigo+' eliminado de Supabase. El evento DELETE fue enviado al webhook.');
+    }catch(err){
+      remove.disabled=false;cancel.disabled=false;remove.textContent='Eliminar definitivamente';
+      const e=document.createElement('p');e.className='mensaje mensaje-error';e.textContent='No se pudo eliminar: '+(err.message||String(err));dialog.insertBefore(e,actions);
+    }
+  });
+}
+function mostrarAvisoEliminarParte(mensaje){
+  const n=document.createElement('div');n.setAttribute('role','status');
+  n.style.cssText='position:fixed;right:20px;bottom:20px;z-index:10060;max-width:min(440px,calc(100vw - 40px));padding:14px 18px;border-radius:10px;background:var(--color-tarjeta,#fff);color:var(--color-texto,#172033);border:1px solid var(--color-borde,#d7dce5);box-shadow:0 8px 30px rgba(0,0,0,.18);';
+  n.textContent=mensaje;document.body.append(n);window.setTimeout(()=>n.remove(),6500);
+}
+
 async function marcarPruebaAdmin(id,valor) {
   const {error}=await cliente.rpc('pd_admin_marcar_prueba',{p_token:SESION.token,p_id:id,p_valor:valor});
   if(error){alert(error.message);return;} cargarAdminEmergencias();
