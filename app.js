@@ -657,9 +657,11 @@ function abrirModalBitacora(item) {
 function cerrarModalBitacora() {
   document.getElementById('modalBitacora').classList.add('oculto');
   ITEM_BITACORA_EN_EDICION = null;
+  BITACORA_GUARDADA = false;
 }
 
 let GUARDANDO_BITACORA = false;
+let BITACORA_GUARDADA = false;
 
 async function guardarBitacoraUI() {
   if (!ITEM_BITACORA_EN_EDICION || GUARDANDO_BITACORA) return;
@@ -721,6 +723,7 @@ async function guardarBitacoraUI() {
   }
 
   if (data && data.item) actualizarItemLocal(ITEM_BITACORA_EN_EDICION.uid_inventario, data.item);
+  BITACORA_GUARDADA = true;
   msg.textContent = '¡Registro de bitácora guardado con éxito!';
   msg.className = 'mensaje';
   setTimeout(() => {
@@ -732,8 +735,11 @@ async function guardarBitacoraUI() {
     msg.textContent = 'No se pudo confirmar el resultado. Revisa el historial antes de volver a registrar para evitar duplicados. ' + ((err && err.message) || err);
     msg.className = 'mensaje mensaje-error';
   } finally {
-    GUARDANDO_BITACORA = false;
-    if (btnGuardar) { btnGuardar.disabled = false; btnGuardar.textContent = btnGuardar.dataset.textoOriginal || 'Guardar nuevo registro'; }
+    GUARDANDO_BITACORA = BITACORA_GUARDADA;
+    if (btnGuardar) {
+      btnGuardar.disabled = BITACORA_GUARDADA;
+      btnGuardar.textContent = BITACORA_GUARDADA ? 'Registro guardado' : (btnGuardar.dataset.textoOriginal || 'Guardar nuevo registro');
+    }
   }
 }
 
