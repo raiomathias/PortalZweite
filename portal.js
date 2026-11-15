@@ -30,6 +30,19 @@ async function cargarMenusAdmin() {
   document.getElementById('menuCardAdmin').classList.toggle('oculto', !(esAdminSistema() || SESION.adminMenus.length > 0));
 }
 
+// Al abrir el panel se vuelven a pedir los menús permitidos: así se aplican al instante los cambios de acceso
+// y no se depende de datos viejos de la sesión.
+async function abrirPanelAdmin() {
+  await cargarMenusAdmin();
+  if (!esAdminSistema() && !(SESION.adminMenus || []).length) {
+    volverAlMenu();
+    alert('No tienes acceso al Panel Administrador.');
+    return;
+  }
+  aplicarTabsAdmin();
+  mostrarAdminTab(primerMenuAdmin());
+}
+
 async function cargarDirectorioPD() {
   const { data, error } = await cliente.rpc('pd_directorio', { p_token: SESION.token });
   if (!error) {
@@ -271,7 +284,7 @@ function mostrarPantalla(nombre) {
   if (nombre === 'emergencia') abrirFormularioEmergencia();
   if (nombre === 'guardia') abrirFormularioGuardia();
   if (nombre === 'perfil') abrirPerfil();
-  if (nombre === 'admin') { aplicarTabsAdmin(); mostrarAdminTab(primerMenuAdmin()); }
+  if (nombre === 'admin') abrirPanelAdmin();
 }
 
 function volverAlMenu() { mostrarPantalla('menu'); }
