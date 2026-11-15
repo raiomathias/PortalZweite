@@ -1,7 +1,7 @@
 // PORTAL ZWEITE · Panel administrador de partes · v1.5
 // Se carga después de portal.js y amplía/sobrescribe sus vistas de administración.
 function mostrarAdminTab(nombre) {
-  if (!SESION || SESION.permisos !== 'Administrador de sistema') { alert('Acceso exclusivo al administrador de sistema.'); return; }
+  if (!puedeMenuAdmin(nombre)) { alert(nombre === 'personal' ? 'Acceso exclusivo al administrador de sistema.' : 'No tienes acceso a este menú del panel.'); return; }
   ADMIN_TAB_ACTUAL = nombre;
   document.querySelectorAll('[data-admintab]').forEach(b => b.classList.toggle('activo', b.dataset.admintab === nombre));
   if (nombre === 'emergencias') renderAdminEmergencias();
@@ -34,7 +34,7 @@ async function cargarAdminEmergencias() {
     p_desde: val('adEmDesde') || null, p_hasta: val('adEmHasta') || null, p_pruebas: val('adEmPruebas') || 'reales'
   });
   if (error) { lista.innerHTML = '<div class="admin-vacio admin-error"><strong>No se pudieron cargar los partes</strong><p>' + escapeHtml(error.message) + '</p><p class="nota">Comprueba que las funciones SQL estén instaladas.</p></div>'; return; }
-  const partes = Array.isArray(data) ? data : [], reales = partes.filter(p => !p.es_prueba).length;
+  const partes = Array.isArray(data) ? data : [], reales = partes.filter(p => !p.es_prueba).length, esAdm = esAdminSistema();
   document.getElementById('adEmKpis').innerHTML =
     '<div class="admin-kpi"><span>Partes encontrados</span><strong>' + partes.length + '</strong></div>' +
     '<div class="admin-kpi"><span>Reales</span><strong>' + reales + '</strong></div>' +
@@ -44,7 +44,7 @@ async function cargarAdminEmergencias() {
   if (!partes.length) { lista.innerHTML = '<div class="admin-vacio"><strong>No hay partes que coincidan</strong><p>Prueba otras fechas o limpia los filtros.</p></div>'; return; }
   lista.innerHTML = partes.map(p => {
     const mat = Array.isArray(p.material_mayor) ? p.material_mayor : [];
-    return '<article class="admin-parte-card"><div class="admin-parte-principal"><div class="admin-parte-titulo"><strong>' + escapeHtml(p.codigo || ('Parte #' + p.id)) + '</strong><span class="badge ' + (p.es_prueba ? 'badge-warning':'badge-success') + '">' + (p.es_prueba?'PRUEBA':'REAL') + '</span><span class="badge ' + (p.pdf_estado==='ok'?'badge-success':p.pdf_estado==='error'?'badge-danger':'badge-warning') + '">PDF: ' + escapeHtml(p.pdf_estado || 'sin estado') + '</span></div><div class="admin-parte-datos"><span><b>Fecha:</b> ' + escapeHtml((p.fecha_inicio ? formatearFecha(p.fecha_inicio) : 'Sin fecha') + ' ' + (p.hora_inicio || '').slice(0,5)) + '</span><span><b>Acto:</b> ' + escapeHtml(p.tipo_acto || 'Sin especificar') + '</span><span><b>Ubicación:</b> ' + escapeHtml([p.direccion,p.ciudad].filter(Boolean).join(', ') || 'Sin ubicación') + '</span><span><b>Reportante:</b> ' + escapeHtml(p.reportado_por_nombre || p.reportado_por || 'Sin reportante') + '</span><span><b>Material mayor:</b> ' + escapeHtml(mat.join(', ') || 'No indicado') + '</span></div></div><div class="admin-parte-acciones"><button class="btn-secundario" onclick="abrirEditorParteAdmin(' + Number(p.id) + ')">Ver y editar ficha completa →</button><button class="btn-texto" onclick="marcarPruebaAdmin(' + Number(p.id) + ', ' + (!p.es_prueba) + ')">' + (p.es_prueba ? 'Marcar como real':'Marcar como prueba') + '</button><button class="btn-texto" style="color:var(--color-error,#b42318)" onclick="eliminarParteAdmin(' + Number(p.id) + ')">Eliminar parte</button></div></article>';
+    return '<article class="admin-parte-card"><div class="admin-parte-principal"><div class="admin-parte-titulo"><strong>' + escapeHtml(p.codigo || ('Parte #' + p.id)) + '</strong><span class="badge ' + (p.es_prueba ? 'badge-warning':'badge-success') + '">' + (p.es_prueba?'PRUEBA':'REAL') + '</span><span class="badge ' + (p.pdf_estado==='ok'?'badge-success':p.pdf_estado==='error'?'badge-danger':'badge-warning') + '">PDF: ' + escapeHtml(p.pdf_estado || 'sin estado') + '</span></div><div class="admin-parte-datos"><span><b>Fecha:</b> ' + escapeHtml((p.fecha_inicio ? formatearFecha(p.fecha_inicio) : 'Sin fecha') + ' ' + (p.hora_inicio || '').slice(0,5)) + '</span><span><b>Acto:</b> ' + escapeHtml(p.tipo_acto || 'Sin especificar') + '</span><span><b>Ubicación:</b> ' + escapeHtml([p.direccion,p.ciudad].filter(Boolean).join(', ') || 'Sin ubicación') + '</span><span><b>Reportante:</b> ' + escapeHtml(p.reportado_por_nombre || p.reportado_por || 'Sin reportante') + '</span><span><b>Material mayor:</b> ' + escapeHtml(mat.join(', ') || 'No indicado') + '</span></div></div>' + (esAdm ? '<div class="admin-parte-acciones"><button class="btn-secundario" onclick="abrirEditorParteAdmin(' + Number(p.id) + ')">Ver y editar ficha completa →</button><button class="btn-texto" onclick="marcarPruebaAdmin(' + Number(p.id) + ', ' + (!p.es_prueba) + ')">' + (p.es_prueba ? 'Marcar como real':'Marcar como prueba') + '</button><button class="btn-texto" style="color:var(--color-error,#b42318)" onclick="eliminarParteAdmin(' + Number(p.id) + ')">Eliminar parte</button></div>' : '') + '</article>';
   }).join('');
 }
 function adminCampoParte(k,label,value,type) {

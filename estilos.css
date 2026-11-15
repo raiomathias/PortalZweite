@@ -709,3 +709,18 @@ input:focus, select:focus, textarea:focus {
   .auditoria-container.es-ancho { max-width: none; }
   .es-card { break-inside: avoid; }
 }
+
+/* ── Acceso por menú al Panel Administrador ── */
+.admin-menus-box { border: 1px solid var(--color-borde); border-radius: 10px; padding: 10px 12px; margin: 4px 0 12px; }
+.admin-menus-box legend { padding: 0 6px; font-weight: 600; font-size: .9rem; }
+.admin-menus-box .filtros { margin-bottom: 6px; }
+
+/* ── Informe PDF (Estadísticas) ── */
+.es-informe-modal { position: fixed; inset: 0; z-index: 10040; background: rgba(15,23,42,.58); display: grid; place-items: center; padding: 20px; }
+.es-informe-box { width: min(460px, 100%); background: var(--color-tarjeta, #fff); color: var(--color-texto, #172033); border: 1px solid var(--color-borde, #d7dce5); border-radius: 14px; padding: 22px; box-shadow: 0 24px 70px rgba(0,0,0,.28); }
+.es-informe-box h3 { margin: 0 0 4px; }
+.es-informe-box label { display: block; margin: 12px 0 0; font-size: .9rem; }
+.es-informe-box input { width: 100%; box-sizing: border-box; }
+.es-informe-fechas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.es-informe-acc { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+.es-totales { margin-top: 4px; }

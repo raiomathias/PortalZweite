@@ -1,4 +1,4 @@
-// PORTAL ZWEITE · Estadísticas del Panel Administrador · v1.0
+// PORTAL ZWEITE · Estadísticas del Panel Administrador · v1.1
 // Se carga después de admin-panel.js. Agrega la pestaña "Estadísticas" (partes y guardias).
 // Todos los datos llegan con una sola función SQL (pd_admin_stats_datos) y se filtran/agregan en el navegador.
 (function () {
@@ -615,7 +615,21 @@
       '<label>Máquina' + sel('esmaq', f.maq, [['', 'Todas']].concat(MAQS.map(function (q) { return [q, q]; }))) + '</label>' +
       '<label>Guardia' + sel('esgt', f.gt, [['', 'Diurna y nocturna'], ['Diurna', 'Solo diurna'], ['Nocturna', 'Solo nocturna']]) + '</label>' +
       '<label>Agrupar por' + sel('esgran', f.gran, [['auto', 'Automático'], ['dia', 'Día'], ['semana', 'Semana'], ['mes', 'Mes']]) + '</label>' +
-      '</div><div class="es-filtros-pie"><span id="esResumenFiltro" class="nota"></span><span><button type="button" class="btn-texto" onclick="esLimpiar()">Limpiar filtros</button><button type="button" class="btn-texto" onclick="window.print()">🖨 Imprimir / PDF</button></span></div></div>';
+      '</div><div class="es-filtros-pie"><span id="esResumenFiltro" class="nota"></span><span><button type="button" class="btn-texto" onclick="esLimpiar()">Limpiar filtros</button><button type="button" class="btn-texto" onclick="esInforme()">📄 Informe PDF</button><button type="button" class="btn-texto" onclick="window.print()">🖨 Imprimir pantalla</button></span></div></div>';
+  }
+  // Tarjetas con la totalidad del período seleccionado (se muestran sobre cada sección, excepto Resumen que ya las incluye).
+  function totales(F) {
+    var P = F.partes, G = F.guardias, f = ES.f;
+    var fs = P.map(function (p) { return p.f; }).concat(G.map(function (g) { return g.f; })).filter(Boolean).sort();
+    var d = f.desde || fs[0], h = f.hasta || fs[fs.length - 1];
+    var rango = d && h ? fecha(d) + ' → ' + fecha(h) : 'sin datos';
+    var nn = G.filter(function (g) { return g.t === 'Nocturna'; }).length;
+    return '<div class="es-totales">' + kpis([
+      ['Total de partes', nf(P.length), rango],
+      ['Total de salidas de máquinas', nf(sum(P, function (p) { return p.nm; })), MAQS.map(function (q) { return q + ': ' + nf(P.filter(function (p) { return p.mq.indexOf(q) >= 0; }).length); }).join(' · ')],
+      ['Total de guardias', nf(G.length), nf(nn) + ' noct. · ' + nf(G.length - nn) + ' diurnas'],
+      ['Total de asistencias', nf(sum(P, function (p) { return p.na; })), 'persona-parte en el período']
+    ]) + '</div>';
   }
   function pintar() {
     var cuerpo = document.getElementById('esCuerpo'); if (!cuerpo) return;
@@ -623,7 +637,7 @@
     document.querySelectorAll('[data-estab]').forEach(function (b) { b.classList.toggle('activo', b.dataset.estab === ES.sub); });
     var r = document.getElementById('esResumenFiltro');
     if (r) r.textContent = nf(ES.F.partes.length) + ' parte(s) y ' + nf(ES.F.guardias.length) + ' guardia(s) con los filtros actuales. Acto y máquina filtran solo partes; el tipo de guardia filtra solo guardias.';
-    try { cuerpo.innerHTML = SECCIONES[ES.sub][1](ES.F); }
+    try { cuerpo.innerHTML = (ES.sub === 'resumen' ? '' : totales(ES.F)) + SECCIONES[ES.sub][1](ES.F); }
     catch (e) { console.error(e); cuerpo.innerHTML = '<div class="admin-vacio admin-error"><strong>No se pudo dibujar esta sección</strong><p>' + esc(e.message) + '</p></div>'; }
   }
   window.renderAdminEstadisticas = async function (forzar) {
@@ -658,12 +672,65 @@
   window.esGenCat = function (c) { ES.genCat = c; pintar(); };
   window.esPersona = function (c) { ES.persona = c; pintar(); };
 
+  // ───────── Informe PDF (Desde – Hasta) ─────────
+  function cargarScript(src) {
+    return new Promise(function (ok, fallo) {
+      var el = document.createElement('script'); el.src = src; el.onload = ok;
+      el.onerror = function () { fallo(new Error('No se pudo cargar ' + src + '. Revisa tu conexión a internet.')); };
+      document.head.appendChild(el);
+    });
+  }
+  async function asegurarLibsPDF() {
+    if (!(window.jspdf && window.jspdf.jsPDF)) await cargarScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+    if (!(window.jspdf.jsPDF.API && window.jspdf.jsPDF.API.autoTable)) await cargarScript('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js');
+  }
+  window.esInforme = function () {
+    if (!ES.datos) return;
+    var f = ES.f, fs = ES.datos.partes.map(function (p) { return p.f; }).filter(Boolean).sort();
+    var d0 = f.desde || fs[0] || hoyISO(), h0 = f.hasta || hoyISO();
+    var m = document.createElement('div'); m.className = 'es-informe-modal'; m.id = 'esInformeModal';
+    m.innerHTML = '<div class="es-informe-box" role="dialog" aria-modal="true" aria-label="Informe PDF"><h3>Informe de Ayudantía en PDF</h3>' +
+      '<p class="nota">Incluye solo partes reales del período elegido, con el formato oficial de la Compañía. No depende de los demás filtros.</p>' +
+      '<div class="es-informe-fechas"><label>Desde<input id="esInfDesde" type="date" value="' + esc(d0) + '"></label><label>Hasta<input id="esInfHasta" type="date" value="' + esc(h0) + '"></label></div>' +
+      '<label>Fecha que aparece en el informe<input id="esInfFecha" type="text" value="' + esc(window.PZInforme.fechaHoyTexto()) + '"></label>' +
+      '<label>Título (déjalo vacío para usar el automático)<input id="esInfTitulo" type="text" placeholder="Informe Ayudantía periodo …"></label>' +
+      '<p id="esInfMsg" class="mensaje" role="status"></p>' +
+      '<div class="es-informe-acc"><button type="button" class="btn-texto" id="esInfCancelar">Cancelar</button><button type="button" class="btn-principal" id="esInfGenerar">Generar y descargar PDF</button></div></div>';
+    document.body.appendChild(m);
+    var cerrar = function () { m.remove(); };
+    m.addEventListener('click', function (e) { if (e.target === m) cerrar(); });
+    document.getElementById('esInfCancelar').onclick = cerrar;
+    document.getElementById('esInfGenerar').onclick = async function () {
+      var btn = this, msg = document.getElementById('esInfMsg');
+      var desde = document.getElementById('esInfDesde').value, hasta = document.getElementById('esInfHasta').value;
+      var err = function (t) { msg.textContent = t; msg.className = 'mensaje mensaje-error'; };
+      if (!desde || !hasta) return err('Elige las dos fechas (Desde y Hasta).');
+      if (desde > hasta) return err('La fecha «Desde» no puede ser posterior a «Hasta».');
+      var partes = ES.datos.partes.filter(function (p) { return !p.p && p.f && p.f >= desde && p.f <= hasta; });
+      if (!partes.length) return err('No hay partes reales entre esas fechas.');
+      btn.disabled = true; btn.textContent = 'Generando…'; msg.textContent = ''; msg.className = 'mensaje';
+      try {
+        await asegurarLibsPDF();
+        var R = window.PZInforme.calcular(partes, nombre);
+        var doc = window.PZInforme.crearDocumento(window.jspdf.jsPDF, R, {
+          desde: desde, hasta: hasta, titulo: document.getElementById('esInfTitulo').value.trim(),
+          fechaTexto: document.getElementById('esInfFecha').value.trim() || window.PZInforme.fechaHoyTexto()
+        });
+        doc.save('Informe_Ayudantia_' + desde + '_a_' + hasta + '.pdf');
+        cerrar();
+      } catch (e) {
+        console.error(e); err('No se pudo generar el PDF: ' + (e && e.message || e));
+        btn.disabled = false; btn.textContent = 'Generar y descargar PDF';
+      }
+    };
+  };
+
   // ───────── Integración con el panel ─────────
   var original = window.mostrarAdminTab;
   window.mostrarAdminTab = function (nombre) {
     var cont = document.getElementById('contenidoAdmin');
     if (nombre !== 'estadisticas') { if (cont) cont.classList.remove('es-ancho'); return original(nombre); }
-    if (!SESION || SESION.permisos !== 'Administrador de sistema') { alert('Acceso exclusivo al administrador de sistema.'); return; }
+    if (!puedeMenuAdmin('estadisticas')) { alert('No tienes acceso a este menú del panel.'); return; }
     ADMIN_TAB_ACTUAL = nombre;
     document.querySelectorAll('[data-admintab]').forEach(function (b) { b.classList.toggle('activo', b.dataset.admintab === nombre); });
     window.renderAdminEstadisticas();

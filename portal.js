@@ -8,9 +8,26 @@
 async function iniciarPortal() {
   document.getElementById('nombreUsuarioMenu').textContent = SESION.nombre;
   document.getElementById('rolUsuarioMenu').textContent = SESION.permisos;
-  document.getElementById('menuCardAdmin').classList.toggle('oculto', SESION.permisos !== 'Administrador de sistema');
+  await cargarMenusAdmin();
   await cargarDirectorioPD();
   mostrarPantalla('menu');
+}
+
+// ---------------- ACCESO POR MENÚ AL PANEL ADMINISTRADOR ----------------
+const ADMIN_MENUS_ORDEN = ['emergencias', 'guardias', 'estadisticas', 'auditoria', 'personal'];
+function esAdminSistema() { return !!SESION && SESION.permisos === 'Administrador de sistema'; }
+function puedeMenuAdmin(menu) { return esAdminSistema() || (!!SESION && Array.isArray(SESION.adminMenus) && SESION.adminMenus.indexOf(menu) >= 0); }
+function primerMenuAdmin() { return ADMIN_MENUS_ORDEN.find(puedeMenuAdmin) || 'emergencias'; }
+function aplicarTabsAdmin() {
+  document.querySelectorAll('[data-admintab]').forEach(b => b.classList.toggle('oculto', !puedeMenuAdmin(b.dataset.admintab)));
+}
+async function cargarMenusAdmin() {
+  SESION.adminMenus = [];
+  try {
+    const { data, error } = await cliente.rpc('pd_admin_menus_de', { p_token: SESION.token });
+    if (!error && data && Array.isArray(data.menus)) SESION.adminMenus = data.menus;
+  } catch (_) { /* sin acceso delegado */ }
+  document.getElementById('menuCardAdmin').classList.toggle('oculto', !(esAdminSistema() || SESION.adminMenus.length > 0));
 }
 
 async function cargarDirectorioPD() {
@@ -254,7 +271,7 @@ function mostrarPantalla(nombre) {
   if (nombre === 'emergencia') abrirFormularioEmergencia();
   if (nombre === 'guardia') abrirFormularioGuardia();
   if (nombre === 'perfil') abrirPerfil();
-  if (nombre === 'admin') mostrarAdminTab('emergencias');
+  if (nombre === 'admin') { aplicarTabsAdmin(); mostrarAdminTab(primerMenuAdmin()); }
 }
 
 function volverAlMenu() { mostrarPantalla('menu'); }
@@ -1232,6 +1249,7 @@ function renderAdminGuardias() {
       <input id="adGuHasta" type="date">
       <button class="btn-secundario" onclick="cargarAdminGuardias()">Filtrar</button>
     </div>
+    <div class="admin-kpis" id="adGuKpis"></div>
     <div id="adGuLista"></div>
   `;
   cargarAdminGuardias();
@@ -1244,6 +1262,13 @@ async function cargarAdminGuardias() {
     p_token: SESION.token, p_desde: val('adGuDesde') || null, p_hasta: val('adGuHasta') || null
   });
   if (error) { lista.innerHTML = `<p class="mensaje-error">${escapeHtml(error.message)}</p>`; return; }
+  const kg = document.getElementById('adGuKpis');
+  if (kg) {
+    const nd = data.filter(g => g.tipo === 'Diurna').length, nn = data.filter(g => g.tipo === 'Nocturna').length;
+    kg.innerHTML = '<div class="admin-kpi"><span>Total de guardias</span><strong>' + data.length + '</strong></div>' +
+      '<div class="admin-kpi"><span>Diurnas</span><strong>' + nd + '</strong></div>' +
+      '<div class="admin-kpi"><span>Nocturnas</span><strong>' + nn + '</strong></div>';
+  }
   if (!data.length) { lista.innerHTML = '<p class="nota">Sin resultados.</p>'; return; }
 
   lista.innerHTML = data.map(g => `
@@ -1268,10 +1293,12 @@ function renderAdminAuditoria() {
         <option value="">Todo</option>
         <option value="parte">Emergencias</option>
         <option value="guardia">Guardias</option>
+        <option value="usuario">Accesos al panel</option>
       </select>
       <input id="adAuTexto" placeholder="Buscar por nombre, clave...">
       <button class="btn-secundario" onclick="cargarAdminAuditoria()">Filtrar</button>
     </div>
+    <div class="admin-kpis" id="adAuKpis"></div>
     <div id="adAuLista"></div>
   `;
   cargarAdminAuditoria();
@@ -1284,6 +1311,8 @@ async function cargarAdminAuditoria() {
     p_token: SESION.token, p_entidad: val('adAuEntidad') || null, p_texto: val('adAuTexto') || null
   });
   if (error) { lista.innerHTML = `<p class="mensaje-error">${escapeHtml(error.message)}</p>`; return; }
+  const ka = document.getElementById('adAuKpis');
+  if (ka) ka.innerHTML = '<div class="admin-kpi"><span>Registros encontrados</span><strong>' + data.length + '</strong><em>máximo 300 más recientes</em></div>';
   if (!data.length) { lista.innerHTML = '<p class="nota">Sin registros.</p>'; return; }
 
   lista.innerHTML = data.map(a => `
@@ -1333,6 +1362,8 @@ function renderAdminPersonal() {
 }
 
 let ADMIN_PERSONAL_CACHE = [];
+let ADMIN_MENUS_CACHE = {};
+const ADMIN_MENUS_ETIQUETA = { estadisticas: 'Estadísticas', emergencias: 'Emergencias', guardias: 'Guardias', auditoria: 'Auditoría' };
 
 async function cargarAdminPersonalLista() {
   const lista = document.getElementById('adPerLista');
@@ -1345,6 +1376,8 @@ async function cargarAdminPersonalLista() {
     return;
   }
   ADMIN_PERSONAL_CACHE = data || [];
+  const rm = await cliente.rpc('pd_admin_menus_usuarios', { p_token: SESION.token });
+  ADMIN_MENUS_CACHE = (!rm.error && rm.data) ? rm.data : {};
   renderizarTarjetasPersonalAdmin(ADMIN_PERSONAL_CACHE);
 }
 
@@ -1374,6 +1407,7 @@ function renderizarTarjetasPersonalAdmin(items) {
       <div class="audit-meta">
         <span>Usuario/Clave: <strong>${escapeHtml(p.usuario)}</strong></span>
         <span>Categoría: <strong>${escapeHtml(p.categoria || 'activos')}</strong></span>
+        ${(ADMIN_MENUS_CACHE[p.usuario] || []).length ? '<span>Panel admin: <strong>' + escapeHtml(ADMIN_MENUS_CACHE[p.usuario].map(m => ADMIN_MENUS_ETIQUETA[m] || m).join(', ')) + '</strong></span>' : ''}
       </div>
     </div>
   `).join('');
@@ -1386,6 +1420,8 @@ function abrirModalAdminPersonal(modo, persona) {
   document.getElementById('adminPersonalMensaje').textContent = '';
 
   document.getElementById('formAdminPersonal').reset();
+  const menusActuales = modo === 'nuevo' ? [] : (ADMIN_MENUS_CACHE[persona.usuario] || []);
+  document.querySelectorAll('[data-apmenu]').forEach(c => { c.checked = menusActuales.indexOf(c.dataset.apmenu) >= 0; });
 
   if (modo === 'nuevo') {
     titulo.textContent = 'Registrar Nuevo Personal';
@@ -1460,6 +1496,19 @@ async function guardarAdminPersonal(event) {
     msg.textContent = error.message;
     msg.className = 'mensaje mensaje-error';
     return false;
+  }
+
+  // Acceso por menú al panel administrador (solo si cambió)
+  const objetivo = original ? original : usuario;
+  const menusNuevos = Array.from(document.querySelectorAll('[data-apmenu]:checked')).map(c => c.dataset.apmenu).sort();
+  const menusPrevios = (ADMIN_MENUS_CACHE[objetivo] || []).slice().sort();
+  if (menusNuevos.join(',') !== menusPrevios.join(',')) {
+    const rm = await cliente.rpc('pd_admin_set_menus', { p_token: SESION.token, p_usuario: objetivo, p_menus: menusNuevos });
+    if (rm.error) {
+      msg.textContent = 'Los datos se guardaron, pero no se pudo guardar el acceso al panel: ' + rm.error.message;
+      msg.className = 'mensaje mensaje-error';
+      return false;
+    }
   }
 
   msg.textContent = '¡Guardado con éxito!';

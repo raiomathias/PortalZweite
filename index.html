@@ -524,6 +524,16 @@
             <option>Administrador de sistema</option>
           </select>
         </label>
+        <fieldset class="admin-menus-box" id="apMenusBox">
+          <legend>Acceso al Panel Administrador (solo lectura)</legend>
+          <div class="filtros">
+            <label class="check-fila"><input type="checkbox" data-apmenu="estadisticas"> Estadísticas</label>
+            <label class="check-fila"><input type="checkbox" data-apmenu="emergencias"> Emergencias</label>
+            <label class="check-fila"><input type="checkbox" data-apmenu="guardias"> Guardias</label>
+            <label class="check-fila"><input type="checkbox" data-apmenu="auditoria"> Auditoría</label>
+          </div>
+          <p class="nota">Solo pueden ver y generar informes; no editan ni eliminan. Los administradores de sistema ya tienen acceso a todo. «Personal» no se puede delegar.</p>
+        </fieldset>
         <div class="modal-botones">
           <button type="button" class="btn-texto" onclick="eliminarPersonaAdmin()" id="btnEliminarPersona" style="color:var(--color-error);">Eliminar</button>
           <button type="button" class="btn-texto" onclick="cerrarModalAdminPersonal()">Cancelar</button>
@@ -552,8 +562,10 @@
 
   <script src="config.js"></script>
   <script src="app.js?v=1.7"></script>
-  <script src="portal.js?v=1.6"></script>
-  <script src="admin-panel.js?v=1.6"></script>
-  <script src="admin-estadisticas.js?v=1.0"></script>
+  <script src="portal.js?v=1.7"></script>
+  <script src="admin-panel.js?v=1.7"></script>
+  <script src="informe-assets.js?v=1.0"></script>
+  <script src="informe-pdf.js?v=1.0"></script>
+  <script src="admin-estadisticas.js?v=1.1"></script>
 </body>
 </html>
