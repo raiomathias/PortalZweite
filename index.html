@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Material Menor - Bomberos</title>
-  <link rel="stylesheet" href="estilos.css?v=1.4">
+  <link rel="stylesheet" href="estilos.css?v=1.5">
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
 </head>
@@ -126,6 +126,7 @@
       <button class="tab" data-admintab="guardias" onclick="mostrarAdminTab('guardias')">Guardias</button>
       <button class="tab" data-admintab="auditoria" onclick="mostrarAdminTab('auditoria')">Auditoría</button>
       <button class="tab" data-admintab="personal" onclick="mostrarAdminTab('personal')">Personal</button>
+      <button class="tab" data-admintab="estadisticas" onclick="mostrarAdminTab('estadisticas')">📊 Estadísticas</button>
     </nav>
     <div id="contenidoAdmin" class="auditoria-container"></div>
   </div>
@@ -553,5 +554,6 @@
   <script src="app.js?v=1.7"></script>
   <script src="portal.js?v=1.6"></script>
   <script src="admin-panel.js?v=1.6"></script>
+  <script src="admin-estadisticas.js?v=1.0"></script>
 </body>
 </html>

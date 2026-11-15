@@ -1,0 +1,4 @@
+-- PortalZweite · Estadísticas del panel administrador
+-- Función de solo lectura (ya aplicada en Supabase). Valida que el token sea de un Administrador de sistema.
+-- Devuelve partes (con asistencia), guardias (con integrantes) y personas en un único JSON compacto.
+-- Ver la definición vigente en Supabase: public.pd_admin_stats_datos(p_token uuid)
