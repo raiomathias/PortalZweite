@@ -146,7 +146,7 @@
     });
     return m;
   }
-  function nombre(c) { var p = ES.datos.P[c]; return p ? p.n : c; }
+  function nombre(c) { var p = ES.datos.P[c]; return String((p && p.n) || (c != null ? c : '(sin nombre)')); }
   function catDe(c, fb) { var p = ES.datos.P[c]; return (p && p.cat) || fb || ''; }
 
   // ───────── Escalas ─────────
