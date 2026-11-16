@@ -1,0 +1,8 @@
+-- Parte PDF en el navegador: agrega 'asistenciaClaves' al payload de pd_payload_pdf.
+-- Ya aplicado en Supabase como migración «pd_payload_pdf_asistencia_claves».
+-- Es la lista exacta de claves presentes en el parte; el PDF marca con X la casilla de cada una.
+-- El resto del payload (usado también por el Apps Script) no cambia.
+--
+-- Cambio respecto a la versión anterior de la función: se agregó al final del jsonb_build_object
+--   'asistenciaClaves', (select coalesce(jsonb_agg(distinct s.clave), '[]'::jsonb)
+--                          from partes_asistencia s where s.parte_id = p.id)

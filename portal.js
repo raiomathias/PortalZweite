@@ -542,10 +542,11 @@ async function generarPDFParte(parteId, codigo, msg) {
     });
     const resultado = await resp.json();
     if (!resultado.ok) throw new Error(resultado.error || 'Apps Script devolvió un error desconocido');
+    if (!resultado.pdfUrl) throw new Error('El generador respondió sin enlace al PDF (no se guardó en Drive). Respuesta: ' + JSON.stringify(resultado).slice(0, 300));
 
     const { error: errorActualizar } = await cliente.rpc('pd_actualizar_pdf', {
       p_token: SESION.token, p_id: parteId, p_estado: 'ok',
-      p_slides_url: resultado.slidesUrl, p_pdf_url: resultado.pdfUrl, p_error: null
+      p_slides_url: resultado.slidesUrl || null, p_pdf_url: resultado.pdfUrl || null, p_error: null
     });
     if (errorActualizar) throw new Error('El PDF se generó, pero no se pudo actualizar su estado: ' + errorActualizar.message);
     pdfOk = true;

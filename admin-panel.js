@@ -73,7 +73,7 @@ async function abrirEditorParteAdmin(id) {
    '<div id="apd_resultados_personal" style="max-height:220px;overflow:auto;border:1px solid var(--color-borde);border-radius:8px;margin-bottom:12px;"></div>' +
    '<p class="nota">Se muestra todo el personal disponible; al escribir se filtra por coincidencia parcial. Seleccionar una persona la agrega sin duplicar su clave dentro de la misma categoría.</p><textarea id="apd_asistencia" rows="7" spellcheck="false">'+escapeHtml(asistencia)+'</textarea></section>' +
    '<section class="admin-editor-seccion admin-metadatos"><h3>Documentos y trazabilidad</h3><div class="admin-campos-grid"><div><span class="nota">Creado en</span><strong>'+escapeHtml(p.creado_en||'—')+'</strong></div><div><span class="nota">Estado PDF</span><strong>'+escapeHtml(p.pdf_estado||'pendiente')+'</strong></div><div><span class="nota">PDF</span>'+(p.pdf_url?'<a href="'+escapeHtml(p.pdf_url)+'" target="_blank" rel="noopener noreferrer">Abrir PDF</a>':'Sin archivo')+'</div><div><span class="nota">Presentación</span>'+(p.slides_url?'<a href="'+escapeHtml(p.slides_url)+'" target="_blank" rel="noopener noreferrer">Abrir presentación</a>':'Sin archivo')+'</div>'+(p.pdf_error?'<div class="admin-campo-ancho"><span class="nota">Error PDF</span><p>'+escapeHtml(p.pdf_error)+'</p></div>':'')+(p.legacy?'<div class="admin-campo-ancho"><span class="nota">Datos heredados</span><pre class="admin-legacy">'+escapeHtml(JSON.stringify(p.legacy,null,2))+'</pre></div>':'')+'<div class="admin-campo-ancho"><span class="nota">Guardias asociadas</span><p>'+escapeHtml((data.guardias||[]).map(g=>g.uid).join(', ')||'Sin guardia asociada')+'</p></div></div></section>' +
-  '<p id="adminParteMensaje" class="mensaje" role="status"></p><div class="admin-editor-acciones"><button type="button" class="btn-texto" onclick="cerrarEditorParteAdmin()">Cancelar</button><button type="button" class="btn-secundario" id="btnRegenerarPDFAdmin" onclick="regenerarPDFParteAdmin('+Number(p.id)+')">↻ Regenerar PDF</button><button type="submit" class="btn-principal" id="btnGuardarAdminParte">Guardar todos los cambios</button></div></form>'
+  '<p id="adminParteMensaje" class="mensaje" role="status"></p><div class="admin-editor-acciones"><button type="button" class="btn-texto" onclick="cerrarEditorParteAdmin()">Cancelar</button><button type="button" class="btn-secundario" id="btnVerPDFAdmin" onclick="verPDFParteAdmin('+Number(p.id)+')">📄 Ver / descargar PDF</button><button type="submit" class="btn-principal" id="btnGuardarAdminParte">Guardar todos los cambios</button></div></form>'
   iniciarSelectorAsistenciaAdmin();;
 }
 function iniciarSelectorAsistenciaAdmin() {
@@ -200,20 +200,23 @@ async function marcarPruebaAdmin(id,valor) {
 }
 
 
-async function regenerarPDFParteAdmin(id) {
+async function regenerarPDFParteAdmin(id, opts) {
+  opts = opts || {};
   const codigo = document.querySelector('#modalAdminParte .admin-editor-cabecera h2')?.textContent?.replace(/^Editar\s*/, '') || ('Parte #' + id);
   if (!SESION || !SESION.token || !cliente) {
     alert('La sesión no está disponible. Vuelve a iniciar sesión.');
     return;
   }
-  if (!confirm('¿Regenerar el PDF de ' + codigo + '? Se utilizarán los datos guardados en la base de datos. Guarda primero cualquier cambio pendiente en el editor.')) return;
-  const boton = document.getElementById('btnRegenerarPDFAdmin');
+  if (!opts.sinConfirmar && !confirm('¿Regenerar el PDF de ' + codigo + '? Se utilizarán los datos guardados en la base de datos. Guarda primero cualquier cambio pendiente en el editor.')) return;
+  const boton = opts.boton || document.getElementById('btnRegenerarPDFAdmin');
+  const textoBoton = boton ? boton.textContent : '';
   const msg = document.getElementById('adminParteMensaje');
-  const setMensaje = (texto, ok) => {
+  const setMensajeEditor = (texto, ok) => {
     if (!msg) return;
     msg.textContent = texto;
     msg.className = ok ? 'mensaje mensaje-ok' : 'mensaje mensaje-error';
   };
+  const setMensaje = opts.mensaje || setMensajeEditor;
   if (boton) { boton.disabled = true; boton.textContent = 'Generando PDF…'; }
   try {
     const { data: payload, error: errorPayload } = await cliente.rpc('pd_payload_pdf', { p_token: SESION.token, p_id: id });
@@ -228,6 +231,7 @@ async function regenerarPDFParteAdmin(id) {
     try { resultado = await respuesta.json(); }
     catch (_) { throw new Error('El generador de PDF devolvió una respuesta no válida (HTTP ' + respuesta.status + ').'); }
     if (!respuesta.ok || !resultado || !resultado.ok) throw new Error((resultado && resultado.error) || ('El generador de PDF respondió HTTP ' + respuesta.status + '.'));
+    if (!resultado.pdfUrl) throw new Error('El generador respondió sin enlace al PDF (no se guardó en Drive). Respuesta: ' + JSON.stringify(resultado).slice(0, 300));
     const { error: errorActualizar } = await cliente.rpc('pd_actualizar_pdf', {
       p_token: SESION.token, p_id: id, p_estado: 'ok',
       p_slides_url: resultado.slidesUrl || null, p_pdf_url: resultado.pdfUrl || null, p_error: null
@@ -249,6 +253,108 @@ async function regenerarPDFParteAdmin(id) {
     setMensaje('No se pudo regenerar el PDF: ' + String((err && err.message) || err), false);
     console.error('Error al regenerar PDF desde administración:', err);
   } finally {
-    if (boton) { boton.disabled = false; boton.textContent = '↻ Regenerar PDF'; }
+    if (boton) { boton.disabled = false; boton.textContent = textoBoton; }
+  }
+}
+
+
+// ───────── Parte en PDF generado en el navegador: ver en pantalla, descargar y copia en Drive ─────────
+const PZ_PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
+let PZ_FONDOS_PARTE = null;
+
+function pzCargarScript(src) {
+  return new Promise((ok, fallo) => {
+    const el = document.createElement('script'); el.src = src; el.onload = ok;
+    el.onerror = () => fallo(new Error('No se pudo cargar ' + src + '. Revisa tu conexión a internet.'));
+    document.head.appendChild(el);
+  });
+}
+async function pzFondosParte() {
+  if (PZ_FONDOS_PARTE) return PZ_FONDOS_PARTE;
+  const cargar = async n => {
+    const r = await fetch('parte-fondo-' + n + '.jpg?v=1');
+    if (!r.ok) throw new Error('No se pudo cargar el formulario base del parte (HTTP ' + r.status + ').');
+    return new Uint8Array(await r.arrayBuffer());
+  };
+  PZ_FONDOS_PARTE = await Promise.all([cargar(1), cargar(2)]);
+  return PZ_FONDOS_PARTE;
+}
+// Dibuja cada hoja del PDF en un canvas del ancho disponible (funciona también en celulares, donde un <iframe> no muestra PDF).
+async function pzDibujarPDF(contenedor, bytes) {
+  if (!window.pdfjsLib) await pzCargarScript(PZ_PDFJS + 'pdf.min.js');
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = PZ_PDFJS + 'pdf.worker.min.js';
+  const pdf = await window.pdfjsLib.getDocument({ data: bytes }).promise;
+  contenedor.innerHTML = '';
+  const ancho = Math.max(280, contenedor.clientWidth - 26);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const hoja = await pdf.getPage(n);
+    const base = hoja.getViewport({ scale: 1 });
+    const vp = hoja.getViewport({ scale: (ancho / base.width) * dpr });
+    const canvas = document.createElement('canvas');
+    canvas.className = 'pz-visor-hoja'; canvas.width = vp.width; canvas.height = vp.height;
+    canvas.style.width = ancho + 'px'; canvas.style.height = (vp.height / dpr) + 'px';
+    contenedor.appendChild(canvas);
+    await hoja.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+  }
+}
+
+async function verPDFParteAdmin(id) {
+  if (!SESION || !SESION.token || !cliente) { alert('La sesión no está disponible. Vuelve a iniciar sesión.'); return; }
+  const previo = document.getElementById('pzVisorPDF'); if (previo) previo.remove();
+  const visor = document.createElement('div');
+  visor.id = 'pzVisorPDF'; visor.className = 'pz-visor';
+  visor.innerHTML = '<div class="pz-visor-caja" role="dialog" aria-modal="true" aria-label="Parte en PDF">' +
+    '<div class="pz-visor-cab"><div><strong id="pzVisorTitulo">Parte en PDF</strong><span class="nota">Se genera con los datos guardados del parte. Si cambiaste algo en el editor, guárdalo y vuelve a abrir esta vista.</span></div>' +
+    '<button type="button" class="btn-icono" id="pzVisorCerrar" aria-label="Cerrar">✕</button></div>' +
+    '<div class="pz-visor-cuerpo" id="pzVisorCuerpo"><p class="nota">Generando PDF…</p></div>' +
+    '<p id="pzVisorMsg" class="mensaje" role="status"></p>' +
+    '<div class="pz-visor-acc"><button type="button" class="btn-principal" id="pzVisorDescargar" disabled>⬇ Descargar PDF</button>' +
+    '<button type="button" class="btn-secundario" id="pzVisorNueva" disabled>↗ Abrir en pestaña nueva</button>' +
+    '<button type="button" class="btn-secundario" id="pzVisorDrive" disabled>☁ Guardar copia en Drive</button></div></div>';
+  document.body.appendChild(visor);
+
+  const $ = sel => visor.querySelector(sel);
+  const cuerpo = $('#pzVisorCuerpo'), msg = $('#pzVisorMsg');
+  const setMsg = (texto, ok) => { msg.textContent = texto || ''; msg.className = texto ? (ok ? 'mensaje mensaje-ok' : 'mensaje mensaje-error') : 'mensaje'; };
+  let urlBlob = null;
+  const cerrar = () => { if (urlBlob) URL.revokeObjectURL(urlBlob); document.removeEventListener('keydown', alTeclear); visor.remove(); };
+  const alTeclear = e => { if (e.key === 'Escape') cerrar(); };
+  document.addEventListener('keydown', alTeclear);
+  $('#pzVisorCerrar').onclick = cerrar;
+  visor.addEventListener('mousedown', e => { if (e.target === visor) cerrar(); });
+
+  try {
+    const { data: payload, error } = await cliente.rpc('pd_payload_pdf', { p_token: SESION.token, p_id: id });
+    if (error) throw new Error('No se pudieron preparar los datos del parte: ' + error.message);
+    if (!window.PZParte) throw new Error('Falta el generador del parte (parte-pdf.js).');
+    if (!(window.jspdf && window.jspdf.jsPDF)) await pzCargarScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+    const fondos = await pzFondosParte();
+    const doc = window.PZParte.crearDocumento(window.jspdf.jsPDF, payload, fondos);
+    const nombre = window.PZParte.nombreArchivo(payload);
+    const buffer = doc.output('arraybuffer');
+    const blob = new Blob([buffer], { type: 'application/pdf' });
+    urlBlob = URL.createObjectURL(blob);
+    $('#pzVisorTitulo').textContent = 'Parte ' + (payload.idParte || ('#' + id));
+
+    try { await pzDibujarPDF(cuerpo, new Uint8Array(buffer.slice(0))); }
+    catch (errVista) {
+      console.warn('No se pudo dibujar la vista previa, se usa el visor del navegador:', errVista);
+      cuerpo.innerHTML = '<iframe title="Parte en PDF" src="' + urlBlob + '"></iframe>';
+    }
+
+    $('#pzVisorDescargar').disabled = false;
+    $('#pzVisorDescargar').onclick = () => {
+      const a = document.createElement('a'); a.href = urlBlob; a.download = nombre;
+      document.body.appendChild(a); a.click(); a.remove();
+    };
+    $('#pzVisorNueva').disabled = false;
+    $('#pzVisorNueva').onclick = () => window.open(urlBlob, '_blank', 'noopener');
+    $('#pzVisorDrive').disabled = false;
+    $('#pzVisorDrive').onclick = () => regenerarPDFParteAdmin(id, { sinConfirmar: true, boton: $('#pzVisorDrive'), mensaje: setMsg });
+  } catch (err) {
+    cuerpo.innerHTML = '<p class="nota">No se pudo generar el PDF.</p>';
+    setMsg(String((err && err.message) || err), false);
+    console.error('Error al generar el PDF del parte:', err);
   }
 }
